@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
-  <title>牌局记账 v3（Cookie + 三Tab + 自动正负 + 保存确认）</title>
+  <title>牌局记账 v4（localStorage + 自动胜者金额 + 图表）</title>
   <style>
     :root{
       --bg:#0b1220; --card:#121a2b; --muted:#7f8aa3; --text:#e8eefc;
@@ -69,6 +69,7 @@
     input:focus,select:focus{border-color:rgba(255,255,255,.25)}
     input[type="text"]{min-width:160px}
     select{min-width:150px}
+    input[readonly]{opacity:.9}
     .msg{font-size:13px;margin-top:8px}
     .msg.ok{color:var(--ok)} .msg.bad{color:var(--bad)} .msg.warn{color:var(--warn)}
     table{width:100%;border-collapse:collapse}
@@ -77,7 +78,7 @@
     .pos{color:var(--ok);font-weight:900}
     .neg{color:var(--bad);font-weight:900}
 
-    /* 侧边栏（明细） */
+    /* Drawer（明细） */
     .drawer-mask{position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:90; display:none;}
     .drawer{
       position:fixed; top:0; right:0; height:100vh;
@@ -100,7 +101,7 @@
     .small{font-size:12px}
 
     /* 金额输入块 */
-    .amt-box{min-width:220px;flex:1}
+    .amt-box{min-width:250px;flex:1}
     .amt-line{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px}
     .amt-line input[type="number"]{width:120px}
     .quickbar{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
@@ -136,6 +137,13 @@
     .modal-head{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
     .modal-body{padding:14px;max-height:min(70vh,520px);overflow:auto}
     .list-item{padding:10px 10px;border:1px solid var(--line);border-radius:12px;margin:10px 0;background:rgba(0,0,0,.14)}
+    .home-chart{
+      width:100%; height:260px;
+      border:1px solid var(--line);
+      border-radius:14px;
+      background:rgba(0,0,0,.18);
+    }
+    @media (min-width:900px){ .home-chart{height:320px;} }
   </style>
 </head>
 
@@ -143,7 +151,7 @@
 
 <div class="topbar">
   <div class="topbar-inner">
-    <div class="title">牌局记账 v3 <span style="opacity:.6;font-size:12px;">（Cookie）</span></div>
+    <div class="title">牌局记账 v4 <span style="opacity:.6;font-size:12px;">（localStorage 优先）</span></div>
     <div class="tabs">
       <div class="tabbtn active" id="tabHomeBtn">主页</div>
       <div class="tabbtn" id="tabEditBtn">记账</div>
@@ -173,10 +181,13 @@
           <thead><tr><th>玩家</th><th>累计输赢</th></tr></thead>
           <tbody id="scoreboardBody"></tbody>
         </table>
+
         <div class="sep"></div>
-        <div class="muted">
-          说明：累计值为正表示赢，为负表示输。结算分账可基于累计值计算（如果你需要我也可以加回“一键结算”）。
+        <div class="pill">汇总图表（趋势）</div>
+        <div class="muted" style="margin:8px 0;">
+          每局结束后的累计金额变化（底部图表持续展示）。
         </div>
+        <canvas id="trendChart" class="home-chart"></canvas>
       </div>
 
       <div class="card">
@@ -187,11 +198,12 @@
           <button class="btn-ghost" id="btnGoSettings">去设置</button>
         </div>
         <div class="sep"></div>
-        <div class="pill">规则提示</div>
+        <div class="pill">本版本规则</div>
         <div class="muted" style="margin-top:8px;">
-          - 选择胜利者后，系统自动判定：胜者为正，其余为负（你输入的都是“绝对值”）。<br/>
-          - 保存前会弹窗展示“最终带符号金额”，确认后才保存。<br/>
-          - 每局合计必须为 0 才能保存（胜者赢的钱=其他人输的钱之和）。
+          - 胜利者无需输入金额：系统自动把输家金额相加，作为胜利者赢额。<br/>
+          - 输家输入为“绝对值”，系统会自动加负号。<br/>
+          - 保存前弹窗展示本局最终带符号金额，确认后写入存储。<br/>
+          - 存储优先 localStorage（更适合 iOS 长期使用）。
         </div>
       </div>
     </div>
@@ -202,9 +214,9 @@
     <div class="card">
       <div class="flex-between">
         <div>
-          <div class="pill">记一局（自动正负 + 保存确认）</div>
+          <div class="pill">记一局（胜者自动计算）</div>
           <div class="muted" style="margin-top:6px;">
-            金额支持：手动输入、快捷 1/2/3/6、下拉选择 1~6（iOS 滚轮）。
+            输家金额支持：手动输入、快捷 1/2/3/6、下拉 1~6（iOS 原生滚轮）。
           </div>
         </div>
         <div class="row">
@@ -224,8 +236,6 @@
           <label>胜利者</label><br/>
           <select id="winnerSelect"></select>
         </div>
-
-        <button class="btn-ghost" id="btnAutoFillWinner">自动让胜者 = 其余合计</button>
       </div>
 
       <div id="amountInputsBox" class="row" style="margin-top:12px;"></div>
@@ -234,7 +244,7 @@
       <div class="sep"></div>
       <div class="row">
         <button class="btn-ok" id="btnRequestSave">保存（先确认）</button>
-        <span class="muted">保存会写入 Cookie</span>
+        <span class="muted" id="storageHint"></span>
       </div>
     </div>
   </div>
@@ -244,7 +254,7 @@
     <div class="card">
       <div class="pill">基础设置</div>
       <div class="muted" style="margin-top:6px;">
-        默认姓名支持选择：陈彬、黄晓芹、黄晓燕、谢绵令；也支持自定义输入。
+        默认姓名可选：彬、芹、燕、令；也支持自定义。
       </div>
 
       <div class="sep"></div>
@@ -266,11 +276,6 @@
 
       <div class="row" style="margin-top:10px;">
         <button id="btnSaveSettings">保存设置</button>
-      </div>
-
-      <div class="sep"></div>
-      <div class="muted">
-        提醒：若你切换人数，历史局数据仍保留，但展示/计算只按当前人数的玩家来取对应位置的数据。
       </div>
     </div>
   </div>
@@ -304,11 +309,11 @@
       <button class="btn-ghost" id="btnCloseConfirm">关闭</button>
     </div>
     <div class="modal-body">
-      <div class="muted">请确认本局最终金额（已根据胜利者自动判断正负）：</div>
+      <div class="muted">本局最终金额（胜者自动计算）：</div>
       <div class="sep"></div>
       <div id="confirmList"></div>
       <div class="sep"></div>
-      <div id="confirmSum" class="muted"></div>
+      <div class="muted" id="confirmSum"></div>
       <div class="sep"></div>
       <div class="row">
         <button class="btn-ok" id="btnConfirmSave">确认保存</button>
@@ -320,36 +325,77 @@
 
 <script>
 (function(){
-  const COOKIE_KEY = "POKER_MONEY_V3";
-  const PRESET_NAMES = ["陈彬","黄晓芹","黄晓燕","谢绵令"];
+  const KEY = "POKER_MONEY_V4";
+  const COOKIE_FALLBACK_KEY = "POKER_MONEY_V4_COOKIE";
+  const PRESET_NAMES = ["彬","芹","燕","令"];
 
-  // ---------- Cookie ----------
-  function setCookie(name, value, days){
+  // ---------- Storage Adapter (localStorage 优先，Cookie 兜底) ----------
+  function cookieSet(name, value, days){
     const d = new Date();
     d.setTime(d.getTime() + (days||365)*24*60*60*1000);
     document.cookie = name + "=" + encodeURIComponent(value) + ";expires=" + d.toUTCString() + ";path=/";
   }
-  function getCookie(name){
+  function cookieGet(name){
     const parts = document.cookie.split(";").map(s=>s.trim());
     for(const p of parts){
       if(p.startsWith(name + "=")) return decodeURIComponent(p.substring(name.length+1));
     }
     return "";
   }
-  function deleteCookie(name){
+  function cookieDel(name){
     document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
   }
+
+  function lsAvailable(){
+    try{
+      const t="__t__";
+      localStorage.setItem(t,"1");
+      localStorage.removeItem(t);
+      return true;
+    }catch(e){ return false; }
+  }
+
+  const storage = {
+    type: lsAvailable() ? "localStorage" : "cookie",
+    load(){
+      const raw = (this.type==="localStorage") ? localStorage.getItem(KEY) : cookieGet(COOKIE_FALLBACK_KEY);
+      if(raw) return raw;
+
+      // 兼容：如果 cookie 里有旧数据而 localStorage 没有，尝试迁移
+      if(this.type==="localStorage"){
+        const old = cookieGet(COOKIE_FALLBACK_KEY);
+        if(old){
+          localStorage.setItem(KEY, old);
+          return old;
+        }
+      }
+      return "";
+    },
+    save(raw){
+      if(this.type==="localStorage"){
+        localStorage.setItem(KEY, raw);
+      }else{
+        cookieSet(COOKIE_FALLBACK_KEY, raw, 365);
+      }
+    },
+    clear(){
+      if(this.type==="localStorage"){
+        localStorage.removeItem(KEY);
+      }
+      cookieDel(COOKIE_FALLBACK_KEY);
+    }
+  };
 
   // ---------- State ----------
   function defaultState(){
     return {
       playerCount: 4,
-      players: ["陈彬","黄晓芹","黄晓燕","谢绵令"],
-      rounds: [] // {id, ts, amounts:[signed], winnerIndex}
+      players: ["彬","芹","燕","令"],
+      rounds: [] // {id, ts, winnerIndex, amounts:[signed]}
     };
   }
   function loadState(){
-    const raw = getCookie(COOKIE_KEY);
+    const raw = storage.load();
     if(!raw) return defaultState();
     try{
       const obj = JSON.parse(raw);
@@ -359,19 +405,16 @@
     }catch(e){ return defaultState(); }
   }
   function saveState(){
-    const raw = JSON.stringify(state);
-    setCookie(COOKIE_KEY, raw, 365);
+    storage.save(JSON.stringify(state));
   }
 
   let state = loadState();
-  // 保存确认用的临时缓存
-  let pendingSignedAmounts = null;
+  let pendingSigned = null;
   let pendingWinner = null;
 
   // ---------- DOM ----------
   const $ = (id)=>document.getElementById(id);
 
-  // Tabs
   const tabHomeBtn = $("tabHomeBtn");
   const tabEditBtn = $("tabEditBtn");
   const tabSettingsBtn = $("tabSettingsBtn");
@@ -379,28 +422,26 @@
   const tabEdit = $("tabEdit");
   const tabSettings = $("tabSettings");
 
-  // Home
   const metaInfo = $("metaInfo");
   const scoreboardBody = $("scoreboardBody");
+  const trendChart = $("trendChart");
+
   const btnGoEdit = $("btnGoEdit");
   const btnGoSettings = $("btnGoSettings");
   const btnRefresh = $("btnRefresh");
 
-  // Settings
   const playerCountEl = $("playerCount");
   const playerNamesBox = $("playerNamesBox");
   const btnSaveSettings = $("btnSaveSettings");
 
-  // Edit
   const playerCountReadOnly = $("playerCountReadOnly");
   const winnerSelect = $("winnerSelect");
   const amountInputsBox = $("amountInputsBox");
   const sumMsg = $("sumMsg");
   const btnClearInputs = $("btnClearInputs");
   const btnRequestSave = $("btnRequestSave");
-  const btnAutoFillWinner = $("btnAutoFillWinner");
+  const storageHint = $("storageHint");
 
-  // Drawer
   const drawer = $("drawer");
   const drawerMask = $("drawerMask");
   const btnOpenDetails = $("btnOpenDetails");
@@ -409,10 +450,8 @@
   const drawerMeta = $("drawerMeta");
   const btnDeleteLast = $("btnDeleteLast");
 
-  // Reset
   const btnResetAll = $("btnResetAll");
 
-  // Confirm modal
   const confirmMask = $("confirmMask");
   const btnCloseConfirm = $("btnCloseConfirm");
   const btnCancelSave = $("btnCancelSave");
@@ -425,7 +464,7 @@
       "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
     }[s]));
   }
-  function showSumMsg(type, text){
+  function showMsg(type, text){
     sumMsg.className = "msg " + (type||"");
     sumMsg.textContent = text || "";
   }
@@ -437,13 +476,13 @@
     tabHome.style.display = isHome ? "" : "none";
     tabEdit.style.display = isEdit ? "" : "none";
     tabSettings.style.display = isSettings ? "" : "none";
-
     tabHomeBtn.classList.toggle("active", isHome);
     tabEditBtn.classList.toggle("active", isEdit);
     tabSettingsBtn.classList.toggle("active", isSettings);
+    if(isHome) drawTrendChart();
   }
 
-  // ---------- Compute ----------
+  // ---------- Core compute ----------
   function computeTotals(){
     const n = state.playerCount;
     const totals = new Array(n).fill(0);
@@ -454,9 +493,8 @@
     return totals;
   }
 
-  // ---------- Amount UI helpers ----------
+  // 金额输入：输家输入绝对值；胜者自动=输家之和
   function buildSelect1to6(){
-    // iOS 下拉会是原生滚轮
     return `
       <option value="">下拉选</option>
       ${[1,2,3,4,5,6].map(v=>`<option value="${v}">${v}</option>`).join("")}
@@ -472,82 +510,83 @@
     `;
   }
 
-  function getAbsValue(i){
-    // 优先用手动输入框；若为空再用下拉
+  function getLoserAbs(i){
     const inp = $("amtInp_"+i);
     const sel = $("amtSel_"+i);
     let v = "";
     if(inp && inp.value !== "") v = inp.value;
     else if(sel && sel.value !== "") v = sel.value;
-    if(v === "") return null;
+    if(v === "") return 0;
     const num = Math.abs(Number(v));
-    if(!Number.isFinite(num)) return null;
-    return num;
+    return Number.isFinite(num) ? num : 0;
   }
-
-  function setAbsValue(i, val){
+  function setLoserAbs(i, val){
     const inp = $("amtInp_"+i);
     const sel = $("amtSel_"+i);
     if(inp) inp.value = String(val);
     if(sel) sel.value = "";
-    validateAndPreview();
+    recalcPreview();
   }
 
-  function validateAndPreview(){
+  function recalcPreview(){
     const n = state.playerCount;
     const win = Number(winnerSelect.value);
     if(win < 0 || win >= n){
-      showSumMsg("warn","请选择胜利者。");
-      return { ok:false };
-    }
-
-    // 生成 signed amounts（只做预览/校验）
-    const signed = new Array(n).fill(0);
-    let filled = 0;
-    for(let i=0;i<n;i++){
-      const abs = getAbsValue(i);
-      if(abs === null){
-        // 未填当 0
-        signed[i] = 0;
-        continue;
+      // 清空胜者只读显示
+      for(let i=0;i<n;i++){
+        const w = $("winnerTag_"+i); if(w) w.innerHTML = "";
+        const ro = $("amtRO_"+i); if(ro) ro.value = "";
+        const row = $("rowHint_"+i); if(row) row.textContent = "";
       }
-      filled++;
-      signed[i] = (i === win) ? abs : -abs;
+      showMsg("warn","请选择胜利者，然后填写输家金额（胜者自动计算）。");
+      return {ok:false};
     }
 
-    if(filled === 0){
-      showSumMsg("warn","请填写金额（手动/快捷/下拉均可）。");
-      return { ok:false };
+    // 胜者标签
+    for(let i=0;i<n;i++){
+      const tag = $("winnerTag_"+i);
+      if(tag) tag.innerHTML = (i===win) ? `<span class="badgeWinner">胜利者（自动）</span>` : "";
+    }
+
+    // 计算输家总额
+    let loserSum = 0;
+    for(let i=0;i<n;i++){
+      if(i===win) continue;
+      loserSum += getLoserAbs(i);
+    }
+
+    // signed amounts
+    const signed = new Array(n).fill(0);
+    for(let i=0;i<n;i++){
+      if(i===win) signed[i] = +loserSum;
+      else signed[i] = -getLoserAbs(i);
+    }
+
+    // 更新胜者只读显示
+    const ro = $("amtRO_"+win);
+    if(ro) ro.value = String(loserSum);
+
+    // 给每行提示本局最终带符号
+    for(let i=0;i<n;i++){
+      const hint = $("rowHint_"+i);
+      if(!hint) continue;
+      const v = signed[i];
+      hint.textContent = `本局：${v>=0?"+":""}${v}`;
+      hint.className = "muted " + (v>=0 ? "pos":"neg");
     }
 
     const sum = signed.reduce((a,b)=>a+b,0);
-
+    // 理论上总是0（胜者=输家和），这里仍提示
     if(Math.abs(sum) < 1e-9){
-      showSumMsg("ok","合计为 0，可以保存（会弹确认）。");
-      return { ok:true, signed, sum };
+      showMsg("ok",`胜者自动计算完成：胜者赢 ${loserSum}，合计为 0，可保存（会弹确认）。`);
+      return {ok:true, signed, winner:win, sum};
     }else{
-      showSumMsg("bad",`合计为 ${sum}（必须为 0 才能保存）。建议用“自动让胜者=其余合计”。`);
-      return { ok:false, signed, sum };
+      showMsg("bad",`合计异常：${sum}（请检查输入）。`);
+      return {ok:false, signed, winner:win, sum};
     }
   }
 
-  function autoFillWinner(){
-    const n = state.playerCount;
-    const win = Number(winnerSelect.value);
-    if(win < 0 || win >= n){
-      alert("请先选择胜利者。");
-      return;
-    }
-    let loseSum = 0;
-    for(let i=0;i<n;i++){
-      if(i===win) continue;
-      const abs = getAbsValue(i);
-      loseSum += Number(abs||0);
-    }
-    setAbsValue(win, loseSum);
-  }
-
-  // ---------- UI Builders ----------
+  // ---------- UI rebuild ----------
   function rebuildHome(){
     const totals = computeTotals();
     scoreboardBody.innerHTML = "";
@@ -588,7 +627,6 @@
       playerNamesBox.appendChild(wrap);
     }
 
-    // bind
     for(let i=0;i<n;i++){
       $("nameSel_"+i).addEventListener("change", ()=>{
         const selV = $("nameSel_"+i).value;
@@ -596,7 +634,6 @@
         if(selV === "__custom__"){
           inp.disabled = false;
           inp.focus();
-          if(inp.value.trim()==="") inp.value = "";
         }else{
           inp.value = "";
           inp.disabled = true;
@@ -606,10 +643,10 @@
   }
 
   function rebuildEdit(){
-    // 人数只读展示
+    storageHint.textContent = `当前存储：${storage.type}（iOS 推荐 localStorage）`;
     playerCountReadOnly.innerHTML = `<option>${state.playerCount} 人</option>`;
 
-    // winner
+    // winner select
     winnerSelect.innerHTML = `<option value="-1">请选择胜利者</option>`;
     for(let i=0;i<state.playerCount;i++){
       const opt = document.createElement("option");
@@ -618,63 +655,77 @@
       winnerSelect.appendChild(opt);
     }
 
-    // amount inputs
+    // amount inputs (输家可输入；胜者只读)
     amountInputsBox.innerHTML = "";
-    const selOpt = buildSelect1to6();
     const n = state.playerCount;
+    const selOpt = buildSelect1to6();
+
     for(let i=0;i<n;i++){
       const name = state.players[i] || ("玩家"+(i+1));
       const box = document.createElement("div");
       box.className = "amt-box";
       box.innerHTML = `
         <label>${escapeHtml(name)} <span id="winnerTag_${i}"></span></label>
-        <div class="amt-line">
-          <input type="number" id="amtInp_${i}" inputmode="numeric" min="0" step="1" placeholder="手动输入" />
+        <div class="amt-line" id="line_${i}">
+          <input type="number" id="amtInp_${i}" inputmode="numeric" min="0" step="1" placeholder="手动输入(输家)" />
           <select id="amtSel_${i}">${selOpt}</select>
+          <input type="number" id="amtRO_${i}" readonly placeholder="胜者自动" style="display:none;width:140px"/>
         </div>
         ${quickChips(i)}
-        <div class="muted">系统会按胜利者自动加/减号（这里输入绝对值）</div>
+        <div id="rowHint_${i}" class="muted"></div>
       `;
       amountInputsBox.appendChild(box);
     }
 
-    // chip events
+    // chips events
     amountInputsBox.querySelectorAll(".chip").forEach(chip=>{
       chip.addEventListener("click", ()=>{
         const idx = Number(chip.getAttribute("data-idx"));
         const v = Number(chip.getAttribute("data-v"));
-        setAbsValue(idx, v);
+        // 若当前 idx 是胜者，不允许手改（胜者自动）
+        if(Number(winnerSelect.value) === idx) return;
+        setLoserAbs(idx, v);
       });
     });
 
     // input/select events
     for(let i=0;i<n;i++){
       $("amtInp_"+i).addEventListener("input", ()=>{
-        // 手动输入时清空下拉
+        if(Number(winnerSelect.value) === i) return;
         $("amtSel_"+i).value = "";
-        validateAndPreview();
+        recalcPreview();
       });
       $("amtSel_"+i).addEventListener("change", ()=>{
-        // 选下拉时清空手动输入
+        if(Number(winnerSelect.value) === i) return;
         if($("amtSel_"+i).value !== "") $("amtInp_"+i).value = "";
-        validateAndPreview();
+        recalcPreview();
       });
     }
 
     winnerSelect.addEventListener("change", ()=>{
-      // 更新胜者标签
-      for(let i=0;i<n;i++){
-        $("winnerTag_"+i).innerHTML = "";
-      }
+      // 切换胜者：把胜者行切到只读，其余行切到可输入
       const win = Number(winnerSelect.value);
-      if(win >= 0 && win < n){
-        $("winnerTag_"+win).innerHTML = `<span class="badgeWinner">胜利者</span>`;
+      for(let i=0;i<n;i++){
+        const inp = $("amtInp_"+i);
+        const sel = $("amtSel_"+i);
+        const ro = $("amtRO_"+i);
+        if(i === win){
+          // 隐藏输家输入，显示只读
+          inp.value = ""; sel.value = "";
+          inp.style.display = "none";
+          sel.style.display = "none";
+          ro.style.display = "";
+        }else{
+          inp.style.display = "";
+          sel.style.display = "";
+          ro.style.display = "none";
+          ro.value = "";
+        }
       }
-      validateAndPreview();
+      recalcPreview();
     });
 
-    // 初始提示
-    showSumMsg("warn","请选择胜利者并填写金额。");
+    showMsg("warn","请选择胜利者，然后填写输家金额（胜者自动计算）。");
   }
 
   function rebuildDrawer(){
@@ -684,7 +735,6 @@
       roundsBox.innerHTML = `<div class="muted">暂无记录。</div>`;
       return;
     }
-
     const n = state.playerCount;
     const rounds = [...state.rounds].sort((a,b)=>b.ts-a.ts);
     for(const r of rounds){
@@ -707,7 +757,7 @@
             <div class="${sumOk?"pos":"neg"}" style="font-weight:900">
               第 ${idx+1} 局 · ${tsStr} · 合计 ${sumOk?"0":"≠0"}
             </div>
-            <div class="muted small">ID：${r.id}</div>
+            <div class="muted small">胜者：${escapeHtml(state.players[r.winnerIndex]||"")}</div>
           </div>
           <div class="row">
             <button class="btn-danger" data-del="${r.id}" type="button">删除</button>
@@ -734,18 +784,21 @@
 
   function rebuildAll(){
     // 修正 players 长度
-    if(!Array.isArray(state.players)) state.players = PRESET_NAMES.slice();
+    if(!Array.isArray(state.players) || state.players.length===0) state.players = PRESET_NAMES.slice();
+    if(state.playerCount !== 3 && state.playerCount !== 4) state.playerCount = 4;
     state.players = state.players.slice(0, state.playerCount);
     while(state.players.length < state.playerCount){
       state.players.push(PRESET_NAMES[state.players.length] || ("玩家"+(state.players.length+1)));
     }
+
     rebuildHome();
     rebuildSettings();
     rebuildEdit();
     rebuildDrawer();
+    drawTrendChart();
   }
 
-  // ---------- Save flow with confirm ----------
+  // ---------- Confirm Save ----------
   function openConfirmModal(signed, sum){
     confirmList.innerHTML = "";
     for(let i=0;i<state.playerCount;i++){
@@ -760,41 +813,34 @@
       `;
       confirmList.appendChild(item);
     }
-    confirmSum.innerHTML = `本局合计：<b style="color:${Math.abs(sum)<1e-9 ? 'var(--ok)' : 'var(--bad)'}">${sum}</b>（必须为 0）`;
+    confirmSum.innerHTML = `本局合计：<b style="color:${Math.abs(sum)<1e-9 ? 'var(--ok)' : 'var(--bad)'}">${sum}</b>（应为 0）`;
     confirmMask.style.display = "flex";
   }
-  function closeConfirmModal(){
-    confirmMask.style.display = "none";
-  }
+  function closeConfirmModal(){ confirmMask.style.display = "none"; }
 
   function requestSave(){
-    const res = validateAndPreview();
+    const res = recalcPreview();
     if(!res.ok) return;
-    pendingSignedAmounts = res.signed;
-    pendingWinner = Number(winnerSelect.value);
+    pendingSigned = res.signed;
+    pendingWinner = res.winner;
     openConfirmModal(res.signed, res.sum);
   }
 
   function confirmSave(){
-    if(!pendingSignedAmounts) return;
-
+    if(!pendingSigned) return;
     state.rounds.push({
       id: "R" + Date.now().toString(36) + Math.random().toString(36).slice(2,6),
       ts: Date.now(),
       winnerIndex: pendingWinner,
-      amounts: pendingSignedAmounts.slice()
+      amounts: pendingSigned.slice()
     });
     saveState();
-
-    // 清理
-    pendingSignedAmounts = null;
+    pendingSigned = null;
     pendingWinner = null;
     closeConfirmModal();
-
-    // 刷新
     rebuildHome();
     rebuildDrawer();
-    // 清空本局输入
+    drawTrendChart();
     clearInputs();
     alert("已保存本局。");
   }
@@ -804,15 +850,19 @@
     for(let i=0;i<state.playerCount;i++){
       const inp = $("amtInp_"+i);
       const sel = $("amtSel_"+i);
-      if(inp) inp.value = "";
-      if(sel) sel.value = "";
+      const ro = $("amtRO_"+i);
       const tag = $("winnerTag_"+i);
-      if(tag) tag.innerHTML = "";
+      const hint = $("rowHint_"+i);
+      if(inp){ inp.value=""; inp.style.display=""; }
+      if(sel){ sel.value=""; sel.style.display=""; }
+      if(ro){ ro.value=""; ro.style.display="none"; }
+      if(tag) tag.innerHTML="";
+      if(hint) hint.textContent="";
     }
-    showSumMsg("warn","请选择胜利者并填写金额。");
+    showMsg("warn","请选择胜利者，然后填写输家金额（胜者自动计算）。");
   }
 
-  // ---------- Settings save ----------
+  // ---------- Settings Save ----------
   function saveSettings(){
     const n = Number(playerCountEl.value);
     state.playerCount = n;
@@ -821,12 +871,8 @@
     for(let i=0;i<n;i++){
       const selV = $("nameSel_"+i)?.value || "";
       const customV = ($("nameCustom_"+i)?.value || "").trim();
-
-      if(selV && selV !== "__custom__"){
-        players.push(selV);
-      }else{
-        players.push(customV || ("玩家"+(i+1)));
-      }
+      if(selV && selV !== "__custom__") players.push(selV);
+      else players.push(customV || ("玩家"+(i+1)));
     }
     state.players = players;
 
@@ -836,24 +882,19 @@
   }
 
   // ---------- Drawer ----------
-  function openDrawer(){
-    drawerMask.style.display = "block";
-    drawer.classList.add("open");
-  }
-  function closeDrawer(){
-    drawerMask.style.display = "none";
-    drawer.classList.remove("open");
-  }
+  function openDrawer(){ drawerMask.style.display="block"; drawer.classList.add("open"); }
+  function closeDrawer(){ drawerMask.style.display="none"; drawer.classList.remove("open"); }
 
   // ---------- Delete / Reset ----------
   function deleteRound(id){
     const idx = state.rounds.findIndex(r=>r.id===id);
-    if(idx < 0) return;
+    if(idx<0) return;
     if(!confirm("确定删除该局吗？")) return;
     state.rounds.splice(idx,1);
     saveState();
     rebuildHome();
     rebuildDrawer();
+    drawTrendChart();
   }
   function deleteLast(){
     if(state.rounds.length===0) return;
@@ -863,28 +904,121 @@
     saveState();
     rebuildHome();
     rebuildDrawer();
+    drawTrendChart();
   }
   function resetAll(){
     if(!confirm("第 1 次确认：确定清空全部数据吗？")) return;
     if(!confirm("第 2 次确认：清空后不可恢复，确定吗？")) return;
     if(!confirm("第 3 次确认：最后确认，真的要清空吗？")) return;
-
-    deleteCookie(COOKIE_KEY);
-    state = defaultState();
+    storage.clear();
+    state = {
+      playerCount: 4,
+      players: ["彬","芹","燕","令"],
+      rounds: []
+    };
     saveState();
     rebuildAll();
     clearInputs();
     alert("已清空。");
   }
 
-  // ---------- Bind Events ----------
+  // ---------- Chart ----------
+  function drawTrendChart(){
+    const canvas = trendChart;
+    const ctx = canvas.getContext("2d");
+
+    const dpr = Math.max(1, Math.floor(window.devicePixelRatio || 1));
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = Math.floor(rect.width * dpr);
+    canvas.height = Math.floor(rect.height * dpr);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+
+    ctx.clearRect(0,0,rect.width,rect.height);
+
+    const n = state.playerCount;
+    const rounds = state.rounds.slice().sort((a,b)=>a.ts-b.ts);
+    const pointsCount = rounds.length + 1;
+    const series = new Array(n).fill(0).map(()=> new Array(pointsCount).fill(0));
+
+    const acc = new Array(n).fill(0);
+    for(let i=0;i<n;i++) series[i][0]=0;
+    rounds.forEach((r, idx)=>{
+      for(let i=0;i<n;i++){
+        acc[i] += Number((r.amounts||[])[i]||0);
+        series[i][idx+1] = acc[i];
+      }
+    });
+
+    let minV = 0, maxV = 0;
+    for(let i=0;i<n;i++){
+      for(let k=0;k<pointsCount;k++){
+        minV = Math.min(minV, series[i][k]);
+        maxV = Math.max(maxV, series[i][k]);
+      }
+    }
+    if(minV === maxV){ minV -= 1; maxV += 1; }
+
+    const padL = 44, padR = 12, padT = 12, padB = 28;
+    const W = rect.width, H = rect.height;
+    const plotW = W - padL - padR;
+    const plotH = H - padT - padB;
+
+    // grid
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = "rgba(255,255,255,.08)";
+    ctx.fillStyle = "rgba(255,255,255,.35)";
+    ctx.font = "12px -apple-system,BlinkMacSystemFont,Segoe UI,Roboto";
+    for(let j=0;j<=3;j++){
+      const y = padT + plotH*(j/3);
+      ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(W-padR,y); ctx.stroke();
+      const val = maxV - (maxV-minV)*(j/3);
+      ctx.fillText(String(Math.round(val)), 10, y+4);
+    }
+    ctx.strokeStyle = "rgba(255,255,255,.12)";
+    ctx.beginPath(); ctx.moveTo(padL,padT+plotH); ctx.lineTo(W-padR,padT+plotH); ctx.stroke();
+
+    const xOf = (k)=> padL + (pointsCount<=1?0:(plotW*(k/(pointsCount-1))));
+    const yOf = (v)=> padT + ((maxV - v)/(maxV - minV))*plotH;
+
+    function colorFor(i){
+      const hue = (i * 360 / Math.max(1,n));
+      return `hsla(${hue}, 80%, 65%, 0.9)`;
+    }
+
+    for(let i=0;i<n;i++){
+      ctx.strokeStyle = colorFor(i);
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for(let k=0;k<pointsCount;k++){
+        const x=xOf(k), y=yOf(series[i][k]);
+        if(k===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+      }
+      ctx.stroke();
+
+      const lastX=xOf(pointsCount-1), lastY=yOf(series[i][pointsCount-1]);
+      ctx.fillStyle = colorFor(i);
+      ctx.beginPath(); ctx.arc(lastX,lastY,3,0,Math.PI*2); ctx.fill();
+
+      // legend
+      ctx.fillStyle = colorFor(i);
+      ctx.fillRect(W-padR-10, padT + i*18, 10, 10);
+      ctx.fillStyle = "rgba(232,238,252,.9)";
+      ctx.fillText(state.players[i]||("玩家"+(i+1)), W-padR-10-110, padT + i*18 + 10);
+    }
+
+    ctx.fillStyle = "rgba(255,255,255,.45)";
+    ctx.fillText("局数 →", W-60, H-10);
+  }
+
+  // ---------- Events ----------
   tabHomeBtn.addEventListener("click", ()=>openTab("home"));
   tabEditBtn.addEventListener("click", ()=>openTab("edit"));
   tabSettingsBtn.addEventListener("click", ()=>openTab("settings"));
 
   btnGoEdit.addEventListener("click", ()=>openTab("edit"));
   btnGoSettings.addEventListener("click", ()=>openTab("settings"));
-  btnRefresh.addEventListener("click", rebuildHome);
+
+  btnRefresh.addEventListener("click", ()=>{ rebuildHome(); drawTrendChart(); });
 
   btnOpenDetails.addEventListener("click", openDrawer);
   btnCloseDetails.addEventListener("click", closeDrawer);
@@ -895,7 +1029,7 @@
 
   btnSaveSettings.addEventListener("click", saveSettings);
   playerCountEl.addEventListener("change", ()=>{
-    // 临时仅重建 settings UI（不落库，等点保存）
+    // 临时预览 settings UI，不落库
     const n = Number(playerCountEl.value);
     const backup = JSON.parse(JSON.stringify(state));
     state.playerCount = n;
@@ -909,17 +1043,19 @@
 
   btnClearInputs.addEventListener("click", clearInputs);
   btnRequestSave.addEventListener("click", requestSave);
-  btnAutoFillWinner.addEventListener("click", autoFillWinner);
 
   btnCloseConfirm.addEventListener("click", closeConfirmModal);
   btnCancelSave.addEventListener("click", closeConfirmModal);
-  confirmMask.addEventListener("click", (e)=>{
-    if(e.target === confirmMask) closeConfirmModal();
-  });
+  confirmMask.addEventListener("click", (e)=>{ if(e.target===confirmMask) closeConfirmModal(); });
   btnConfirmSave.addEventListener("click", confirmSave);
 
+  window.addEventListener("resize", ()=>{
+    clearTimeout(window.__chartT);
+    window.__chartT = setTimeout(drawTrendChart, 120);
+  });
+
   // ---------- Init ----------
-  // 修正默认名字（如果用户第一次进入或数据坏）
+  // 修正初始
   if(state.playerCount !== 3 && state.playerCount !== 4) state.playerCount = 4;
   if(!Array.isArray(state.players) || state.players.length===0) state.players = PRESET_NAMES.slice();
   state.players = state.players.slice(0, state.playerCount);
@@ -928,6 +1064,7 @@
   }
   saveState();
   rebuildAll();
+  clearInputs();
   openTab("home");
 })();
 </script>
