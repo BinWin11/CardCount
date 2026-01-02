@@ -1,0 +1,936 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
+  <title>牌局记账 v3（Cookie + 三Tab + 自动正负 + 保存确认）</title>
+  <style>
+    :root{
+      --bg:#0b1220; --card:#121a2b; --muted:#7f8aa3; --text:#e8eefc;
+      --ok:#25c26e; --bad:#ff5c6c; --warn:#ffcc66; --line:rgba(255,255,255,.09);
+      --btn:#2a3a63; --btn2:#1c2743; --shadow:0 10px 30px rgba(0,0,0,.35);
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; color:var(--text);
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,"PingFang SC","Microsoft Yahei",sans-serif;
+      background:linear-gradient(180deg,#070c16,#0b1220 30%,#070c16);
+      -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+    }
+    .topbar{
+      position:sticky; top:0; z-index:30;
+      background:rgba(7,12,22,.75); backdrop-filter: blur(10px);
+      border-bottom:1px solid var(--line);
+    }
+    .topbar-inner{
+      max-width:1100px;margin:0 auto;padding:10px 14px;
+      display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;
+    }
+    .title{font-weight:900;font-size:16px}
+    .tabs{display:flex;gap:8px;flex-wrap:wrap}
+    .tabbtn{
+      border:1px solid var(--line); border-radius:999px;
+      padding:8px 12px; cursor:pointer; user-select:none;
+      background:rgba(18,26,43,.6);
+      font-size:13px;
+    }
+    .tabbtn.active{background:linear-gradient(180deg,var(--btn),var(--btn2));}
+    .actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    button{
+      background:linear-gradient(180deg,var(--btn),var(--btn2));
+      border:1px solid var(--line);
+      color:var(--text); border-radius:12px;
+      padding:10px 12px; font-size:14px; cursor:pointer;
+      box-shadow:0 8px 18px rgba(0,0,0,.18);
+    }
+    button:hover{filter:brightness(1.08)}
+    .btn-ghost{background:transparent;box-shadow:none}
+    .btn-danger{background:linear-gradient(180deg,#5b2230,#3a1620);border-color:rgba(255,92,108,.25)}
+    .btn-ok{background:linear-gradient(180deg,#1f5a3b,#143524);border-color:rgba(37,194,110,.25)}
+    .wrap{max-width:1100px;margin:0 auto;padding:14px;}
+    .grid{display:grid;grid-template-columns:1fr;gap:12px;margin-top:12px;}
+    @media (min-width:900px){ .grid{grid-template-columns:1.2fr .8fr;} }
+    .card{
+      background:rgba(18,26,43,.92);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:14px;
+      box-shadow:var(--shadow);
+    }
+    .pill{display:inline-block;padding:3px 8px;border:1px solid var(--line);border-radius:999px;font-size:12px;color:var(--muted)}
+    .muted{color:var(--muted);font-size:12px;line-height:1.5}
+    .sep{height:1px;background:var(--line);margin:12px 0}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    label{font-size:12px;color:var(--muted)}
+    input,select{
+      background:#0d1426;color:var(--text);border:1px solid var(--line);
+      border-radius:12px;padding:10px 10px;font-size:15px;outline:none;
+    }
+    input:focus,select:focus{border-color:rgba(255,255,255,.25)}
+    input[type="text"]{min-width:160px}
+    select{min-width:150px}
+    .msg{font-size:13px;margin-top:8px}
+    .msg.ok{color:var(--ok)} .msg.bad{color:var(--bad)} .msg.warn{color:var(--warn)}
+    table{width:100%;border-collapse:collapse}
+    th,td{border-bottom:1px solid var(--line);padding:10px 6px;text-align:left;font-size:14px}
+    th{color:var(--muted);font-weight:800;font-size:12px}
+    .pos{color:var(--ok);font-weight:900}
+    .neg{color:var(--bad);font-weight:900}
+
+    /* 侧边栏（明细） */
+    .drawer-mask{position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:90; display:none;}
+    .drawer{
+      position:fixed; top:0; right:0; height:100vh;
+      width:min(520px, 92vw);
+      background:rgba(18,26,43,.98); backdrop-filter: blur(10px);
+      border-left:1px solid var(--line);
+      z-index:100;
+      transform: translateX(110%);
+      transition: transform .25s ease;
+      display:flex; flex-direction:column;
+      box-shadow: -14px 0 40px rgba(0,0,0,.45);
+    }
+    .drawer.open{transform: translateX(0);}
+    .drawer-head{padding:12px 12px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:center;justify-content:space-between}
+    .drawer-body{padding:12px;overflow:auto}
+    details{border:1px solid var(--line);border-radius:12px;padding:10px 10px;margin:10px 0;background:rgba(0,0,0,.14)}
+    summary{cursor:pointer;list-style:none}
+    summary::-webkit-details-marker{display:none}
+    .flex-between{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}
+    .small{font-size:12px}
+
+    /* 金额输入块 */
+    .amt-box{min-width:220px;flex:1}
+    .amt-line{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px}
+    .amt-line input[type="number"]{width:120px}
+    .quickbar{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+    .chip{
+      border:1px solid var(--line); border-radius:999px;
+      padding:7px 10px; font-size:13px; cursor:pointer;
+      background:rgba(0,0,0,.12); user-select:none;
+    }
+    .chip:hover{filter:brightness(1.1)}
+    .badgeWinner{
+      display:inline-block; padding:3px 8px; border-radius:999px;
+      border:1px solid rgba(37,194,110,.25);
+      color:var(--ok); font-size:12px; font-weight:800;
+      background:rgba(31,90,59,.25);
+      margin-left:6px;
+    }
+
+    /* 保存确认弹窗 */
+    .modal-mask{
+      position:fixed; inset:0; background:rgba(0,0,0,.55);
+      z-index:120; display:none;
+      align-items:center; justify-content:center;
+      padding:14px;
+    }
+    .modal{
+      width:min(640px, 96vw);
+      background:rgba(18,26,43,.98);
+      border:1px solid var(--line);
+      border-radius:16px;
+      box-shadow:var(--shadow);
+      overflow:hidden;
+    }
+    .modal-head{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+    .modal-body{padding:14px;max-height:min(70vh,520px);overflow:auto}
+    .list-item{padding:10px 10px;border:1px solid var(--line);border-radius:12px;margin:10px 0;background:rgba(0,0,0,.14)}
+  </style>
+</head>
+
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="title">牌局记账 v3 <span style="opacity:.6;font-size:12px;">（Cookie）</span></div>
+    <div class="tabs">
+      <div class="tabbtn active" id="tabHomeBtn">主页</div>
+      <div class="tabbtn" id="tabEditBtn">记账</div>
+      <div class="tabbtn" id="tabSettingsBtn">设置</div>
+    </div>
+    <div class="actions">
+      <button class="btn-ghost" id="btnOpenDetails">明细侧边栏</button>
+      <button class="btn-danger" id="btnResetAll">清空全部（多次确认）</button>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+  <!-- HOME -->
+  <div id="tabHome">
+    <div class="grid">
+      <div class="card">
+        <div class="flex-between">
+          <div>
+            <div class="pill">累计看板</div>
+            <div class="muted" id="metaInfo" style="margin-top:6px;"></div>
+          </div>
+          <button class="btn-ghost" id="btnRefresh">刷新</button>
+        </div>
+        <div class="sep"></div>
+        <table>
+          <thead><tr><th>玩家</th><th>累计输赢</th></tr></thead>
+          <tbody id="scoreboardBody"></tbody>
+        </table>
+        <div class="sep"></div>
+        <div class="muted">
+          说明：累计值为正表示赢，为负表示输。结算分账可基于累计值计算（如果你需要我也可以加回“一键结算”）。
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="pill">快捷操作</div>
+        <div class="sep"></div>
+        <div class="row">
+          <button class="btn-ok" id="btnGoEdit">去记一局</button>
+          <button class="btn-ghost" id="btnGoSettings">去设置</button>
+        </div>
+        <div class="sep"></div>
+        <div class="pill">规则提示</div>
+        <div class="muted" style="margin-top:8px;">
+          - 选择胜利者后，系统自动判定：胜者为正，其余为负（你输入的都是“绝对值”）。<br/>
+          - 保存前会弹窗展示“最终带符号金额”，确认后才保存。<br/>
+          - 每局合计必须为 0 才能保存（胜者赢的钱=其他人输的钱之和）。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- EDIT -->
+  <div id="tabEdit" style="display:none;">
+    <div class="card">
+      <div class="flex-between">
+        <div>
+          <div class="pill">记一局（自动正负 + 保存确认）</div>
+          <div class="muted" style="margin-top:6px;">
+            金额支持：手动输入、快捷 1/2/3/6、下拉选择 1~6（iOS 滚轮）。
+          </div>
+        </div>
+        <div class="row">
+          <button class="btn-ghost" id="btnClearInputs">清空本局输入</button>
+        </div>
+      </div>
+
+      <div class="sep"></div>
+
+      <div class="row">
+        <div>
+          <label>人数</label><br/>
+          <select id="playerCountReadOnly" disabled></select>
+        </div>
+
+        <div>
+          <label>胜利者</label><br/>
+          <select id="winnerSelect"></select>
+        </div>
+
+        <button class="btn-ghost" id="btnAutoFillWinner">自动让胜者 = 其余合计</button>
+      </div>
+
+      <div id="amountInputsBox" class="row" style="margin-top:12px;"></div>
+      <div id="sumMsg" class="msg"></div>
+
+      <div class="sep"></div>
+      <div class="row">
+        <button class="btn-ok" id="btnRequestSave">保存（先确认）</button>
+        <span class="muted">保存会写入 Cookie</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div id="tabSettings" style="display:none;">
+    <div class="card">
+      <div class="pill">基础设置</div>
+      <div class="muted" style="margin-top:6px;">
+        默认姓名支持选择：陈彬、黄晓芹、黄晓燕、谢绵令；也支持自定义输入。
+      </div>
+
+      <div class="sep"></div>
+
+      <div class="row">
+        <div>
+          <label>人数</label><br/>
+          <select id="playerCount">
+            <option value="4">4 人</option>
+            <option value="3">3 人</option>
+          </select>
+        </div>
+        <div class="muted">切换人数后，下面只显示对应人数的姓名配置。</div>
+      </div>
+
+      <div class="sep"></div>
+
+      <div id="playerNamesBox" class="row"></div>
+
+      <div class="row" style="margin-top:10px;">
+        <button id="btnSaveSettings">保存设置</button>
+      </div>
+
+      <div class="sep"></div>
+      <div class="muted">
+        提醒：若你切换人数，历史局数据仍保留，但展示/计算只按当前人数的玩家来取对应位置的数据。
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 明细侧边栏 -->
+<div class="drawer-mask" id="drawerMask"></div>
+<div class="drawer" id="drawer">
+  <div class="drawer-head">
+    <div>
+      <div style="font-weight:900">局数明细</div>
+      <div class="muted small" id="drawerMeta"></div>
+    </div>
+    <div class="row">
+      <button class="btn-ghost" id="btnCloseDetails">关闭</button>
+    </div>
+  </div>
+  <div class="drawer-body">
+    <div class="row">
+      <button class="btn-ghost" id="btnDeleteLast">删除最后一局</button>
+    </div>
+    <div id="roundsBox" style="margin-top:10px;"></div>
+  </div>
+</div>
+
+<!-- 保存确认弹窗 -->
+<div class="modal-mask" id="confirmMask">
+  <div class="modal">
+    <div class="modal-head">
+      <div style="font-weight:900">确认保存本局？</div>
+      <button class="btn-ghost" id="btnCloseConfirm">关闭</button>
+    </div>
+    <div class="modal-body">
+      <div class="muted">请确认本局最终金额（已根据胜利者自动判断正负）：</div>
+      <div class="sep"></div>
+      <div id="confirmList"></div>
+      <div class="sep"></div>
+      <div id="confirmSum" class="muted"></div>
+      <div class="sep"></div>
+      <div class="row">
+        <button class="btn-ok" id="btnConfirmSave">确认保存</button>
+        <button class="btn-ghost" id="btnCancelSave">取消</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const COOKIE_KEY = "POKER_MONEY_V3";
+  const PRESET_NAMES = ["陈彬","黄晓芹","黄晓燕","谢绵令"];
+
+  // ---------- Cookie ----------
+  function setCookie(name, value, days){
+    const d = new Date();
+    d.setTime(d.getTime() + (days||365)*24*60*60*1000);
+    document.cookie = name + "=" + encodeURIComponent(value) + ";expires=" + d.toUTCString() + ";path=/";
+  }
+  function getCookie(name){
+    const parts = document.cookie.split(";").map(s=>s.trim());
+    for(const p of parts){
+      if(p.startsWith(name + "=")) return decodeURIComponent(p.substring(name.length+1));
+    }
+    return "";
+  }
+  function deleteCookie(name){
+    document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
+  }
+
+  // ---------- State ----------
+  function defaultState(){
+    return {
+      playerCount: 4,
+      players: ["陈彬","黄晓芹","黄晓燕","谢绵令"],
+      rounds: [] // {id, ts, amounts:[signed], winnerIndex}
+    };
+  }
+  function loadState(){
+    const raw = getCookie(COOKIE_KEY);
+    if(!raw) return defaultState();
+    try{
+      const obj = JSON.parse(raw);
+      if(!obj || !Array.isArray(obj.players) || !Array.isArray(obj.rounds)) return defaultState();
+      if(obj.playerCount !== 3 && obj.playerCount !== 4) obj.playerCount = obj.players.length || 4;
+      return obj;
+    }catch(e){ return defaultState(); }
+  }
+  function saveState(){
+    const raw = JSON.stringify(state);
+    setCookie(COOKIE_KEY, raw, 365);
+  }
+
+  let state = loadState();
+  // 保存确认用的临时缓存
+  let pendingSignedAmounts = null;
+  let pendingWinner = null;
+
+  // ---------- DOM ----------
+  const $ = (id)=>document.getElementById(id);
+
+  // Tabs
+  const tabHomeBtn = $("tabHomeBtn");
+  const tabEditBtn = $("tabEditBtn");
+  const tabSettingsBtn = $("tabSettingsBtn");
+  const tabHome = $("tabHome");
+  const tabEdit = $("tabEdit");
+  const tabSettings = $("tabSettings");
+
+  // Home
+  const metaInfo = $("metaInfo");
+  const scoreboardBody = $("scoreboardBody");
+  const btnGoEdit = $("btnGoEdit");
+  const btnGoSettings = $("btnGoSettings");
+  const btnRefresh = $("btnRefresh");
+
+  // Settings
+  const playerCountEl = $("playerCount");
+  const playerNamesBox = $("playerNamesBox");
+  const btnSaveSettings = $("btnSaveSettings");
+
+  // Edit
+  const playerCountReadOnly = $("playerCountReadOnly");
+  const winnerSelect = $("winnerSelect");
+  const amountInputsBox = $("amountInputsBox");
+  const sumMsg = $("sumMsg");
+  const btnClearInputs = $("btnClearInputs");
+  const btnRequestSave = $("btnRequestSave");
+  const btnAutoFillWinner = $("btnAutoFillWinner");
+
+  // Drawer
+  const drawer = $("drawer");
+  const drawerMask = $("drawerMask");
+  const btnOpenDetails = $("btnOpenDetails");
+  const btnCloseDetails = $("btnCloseDetails");
+  const roundsBox = $("roundsBox");
+  const drawerMeta = $("drawerMeta");
+  const btnDeleteLast = $("btnDeleteLast");
+
+  // Reset
+  const btnResetAll = $("btnResetAll");
+
+  // Confirm modal
+  const confirmMask = $("confirmMask");
+  const btnCloseConfirm = $("btnCloseConfirm");
+  const btnCancelSave = $("btnCancelSave");
+  const btnConfirmSave = $("btnConfirmSave");
+  const confirmList = $("confirmList");
+  const confirmSum = $("confirmSum");
+
+  function escapeHtml(str){
+    return String(str).replace(/[&<>"']/g, s=>({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+    }[s]));
+  }
+  function showSumMsg(type, text){
+    sumMsg.className = "msg " + (type||"");
+    sumMsg.textContent = text || "";
+  }
+
+  function openTab(name){
+    const isHome = name==="home";
+    const isEdit = name==="edit";
+    const isSettings = name==="settings";
+    tabHome.style.display = isHome ? "" : "none";
+    tabEdit.style.display = isEdit ? "" : "none";
+    tabSettings.style.display = isSettings ? "" : "none";
+
+    tabHomeBtn.classList.toggle("active", isHome);
+    tabEditBtn.classList.toggle("active", isEdit);
+    tabSettingsBtn.classList.toggle("active", isSettings);
+  }
+
+  // ---------- Compute ----------
+  function computeTotals(){
+    const n = state.playerCount;
+    const totals = new Array(n).fill(0);
+    for(const r of state.rounds){
+      const am = Array.isArray(r.amounts) ? r.amounts : [];
+      for(let i=0;i<n;i++) totals[i] += Number(am[i]||0);
+    }
+    return totals;
+  }
+
+  // ---------- Amount UI helpers ----------
+  function buildSelect1to6(){
+    // iOS 下拉会是原生滚轮
+    return `
+      <option value="">下拉选</option>
+      ${[1,2,3,4,5,6].map(v=>`<option value="${v}">${v}</option>`).join("")}
+    `;
+  }
+  function quickChips(i){
+    const vals = [1,2,3,6];
+    return `
+      <div class="quickbar">
+        ${vals.map(v=>`<div class="chip" data-idx="${i}" data-v="${v}">${v}</div>`).join("")}
+        <div class="chip" data-idx="${i}" data-v="0">0</div>
+      </div>
+    `;
+  }
+
+  function getAbsValue(i){
+    // 优先用手动输入框；若为空再用下拉
+    const inp = $("amtInp_"+i);
+    const sel = $("amtSel_"+i);
+    let v = "";
+    if(inp && inp.value !== "") v = inp.value;
+    else if(sel && sel.value !== "") v = sel.value;
+    if(v === "") return null;
+    const num = Math.abs(Number(v));
+    if(!Number.isFinite(num)) return null;
+    return num;
+  }
+
+  function setAbsValue(i, val){
+    const inp = $("amtInp_"+i);
+    const sel = $("amtSel_"+i);
+    if(inp) inp.value = String(val);
+    if(sel) sel.value = "";
+    validateAndPreview();
+  }
+
+  function validateAndPreview(){
+    const n = state.playerCount;
+    const win = Number(winnerSelect.value);
+    if(win < 0 || win >= n){
+      showSumMsg("warn","请选择胜利者。");
+      return { ok:false };
+    }
+
+    // 生成 signed amounts（只做预览/校验）
+    const signed = new Array(n).fill(0);
+    let filled = 0;
+    for(let i=0;i<n;i++){
+      const abs = getAbsValue(i);
+      if(abs === null){
+        // 未填当 0
+        signed[i] = 0;
+        continue;
+      }
+      filled++;
+      signed[i] = (i === win) ? abs : -abs;
+    }
+
+    if(filled === 0){
+      showSumMsg("warn","请填写金额（手动/快捷/下拉均可）。");
+      return { ok:false };
+    }
+
+    const sum = signed.reduce((a,b)=>a+b,0);
+
+    if(Math.abs(sum) < 1e-9){
+      showSumMsg("ok","合计为 0，可以保存（会弹确认）。");
+      return { ok:true, signed, sum };
+    }else{
+      showSumMsg("bad",`合计为 ${sum}（必须为 0 才能保存）。建议用“自动让胜者=其余合计”。`);
+      return { ok:false, signed, sum };
+    }
+  }
+
+  function autoFillWinner(){
+    const n = state.playerCount;
+    const win = Number(winnerSelect.value);
+    if(win < 0 || win >= n){
+      alert("请先选择胜利者。");
+      return;
+    }
+    let loseSum = 0;
+    for(let i=0;i<n;i++){
+      if(i===win) continue;
+      const abs = getAbsValue(i);
+      loseSum += Number(abs||0);
+    }
+    setAbsValue(win, loseSum);
+  }
+
+  // ---------- UI Builders ----------
+  function rebuildHome(){
+    const totals = computeTotals();
+    scoreboardBody.innerHTML = "";
+    for(let i=0;i<state.playerCount;i++){
+      const val = totals[i];
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${escapeHtml(state.players[i]||("玩家"+(i+1)))}</td>
+        <td class="${val>=0?"pos":"neg"}">${val>=0?"+":""}${val}</td>
+      `;
+      scoreboardBody.appendChild(tr);
+    }
+    metaInfo.textContent = `人数：${state.playerCount}；局数：${state.rounds.length}`;
+  }
+
+  function rebuildSettings(){
+    playerCountEl.value = String(state.playerCount);
+    playerNamesBox.innerHTML = "";
+    const n = state.playerCount;
+
+    for(let i=0;i<n;i++){
+      const current = state.players[i] || "";
+      const isPreset = PRESET_NAMES.includes(current);
+      const wrap = document.createElement("div");
+      wrap.style.minWidth = "260px";
+      wrap.innerHTML = `
+        <label>玩家 ${i+1}</label><br/>
+        <div class="amt-line">
+          <select id="nameSel_${i}">
+            <option value="">请选择</option>
+            ${PRESET_NAMES.map(nm=>`<option value="${escapeHtml(nm)}"${nm===current?" selected":""}>${escapeHtml(nm)}</option>`).join("")}
+            <option value="__custom__"${isPreset ? "" : " selected"}>自定义</option>
+          </select>
+          <input type="text" id="nameCustom_${i}" placeholder="自定义姓名" value="${isPreset ? "" : escapeHtml(current)}" ${isPreset ? "disabled":""}/>
+        </div>
+        <div class="muted">选择默认姓名或切到“自定义”输入</div>
+      `;
+      playerNamesBox.appendChild(wrap);
+    }
+
+    // bind
+    for(let i=0;i<n;i++){
+      $("nameSel_"+i).addEventListener("change", ()=>{
+        const selV = $("nameSel_"+i).value;
+        const inp = $("nameCustom_"+i);
+        if(selV === "__custom__"){
+          inp.disabled = false;
+          inp.focus();
+          if(inp.value.trim()==="") inp.value = "";
+        }else{
+          inp.value = "";
+          inp.disabled = true;
+        }
+      });
+    }
+  }
+
+  function rebuildEdit(){
+    // 人数只读展示
+    playerCountReadOnly.innerHTML = `<option>${state.playerCount} 人</option>`;
+
+    // winner
+    winnerSelect.innerHTML = `<option value="-1">请选择胜利者</option>`;
+    for(let i=0;i<state.playerCount;i++){
+      const opt = document.createElement("option");
+      opt.value = String(i);
+      opt.textContent = state.players[i] || ("玩家"+(i+1));
+      winnerSelect.appendChild(opt);
+    }
+
+    // amount inputs
+    amountInputsBox.innerHTML = "";
+    const selOpt = buildSelect1to6();
+    const n = state.playerCount;
+    for(let i=0;i<n;i++){
+      const name = state.players[i] || ("玩家"+(i+1));
+      const box = document.createElement("div");
+      box.className = "amt-box";
+      box.innerHTML = `
+        <label>${escapeHtml(name)} <span id="winnerTag_${i}"></span></label>
+        <div class="amt-line">
+          <input type="number" id="amtInp_${i}" inputmode="numeric" min="0" step="1" placeholder="手动输入" />
+          <select id="amtSel_${i}">${selOpt}</select>
+        </div>
+        ${quickChips(i)}
+        <div class="muted">系统会按胜利者自动加/减号（这里输入绝对值）</div>
+      `;
+      amountInputsBox.appendChild(box);
+    }
+
+    // chip events
+    amountInputsBox.querySelectorAll(".chip").forEach(chip=>{
+      chip.addEventListener("click", ()=>{
+        const idx = Number(chip.getAttribute("data-idx"));
+        const v = Number(chip.getAttribute("data-v"));
+        setAbsValue(idx, v);
+      });
+    });
+
+    // input/select events
+    for(let i=0;i<n;i++){
+      $("amtInp_"+i).addEventListener("input", ()=>{
+        // 手动输入时清空下拉
+        $("amtSel_"+i).value = "";
+        validateAndPreview();
+      });
+      $("amtSel_"+i).addEventListener("change", ()=>{
+        // 选下拉时清空手动输入
+        if($("amtSel_"+i).value !== "") $("amtInp_"+i).value = "";
+        validateAndPreview();
+      });
+    }
+
+    winnerSelect.addEventListener("change", ()=>{
+      // 更新胜者标签
+      for(let i=0;i<n;i++){
+        $("winnerTag_"+i).innerHTML = "";
+      }
+      const win = Number(winnerSelect.value);
+      if(win >= 0 && win < n){
+        $("winnerTag_"+win).innerHTML = `<span class="badgeWinner">胜利者</span>`;
+      }
+      validateAndPreview();
+    });
+
+    // 初始提示
+    showSumMsg("warn","请选择胜利者并填写金额。");
+  }
+
+  function rebuildDrawer(){
+    drawerMeta.textContent = `共 ${state.rounds.length} 局（最新在上）`;
+    roundsBox.innerHTML = "";
+    if(state.rounds.length === 0){
+      roundsBox.innerHTML = `<div class="muted">暂无记录。</div>`;
+      return;
+    }
+
+    const n = state.playerCount;
+    const rounds = [...state.rounds].sort((a,b)=>b.ts-a.ts);
+    for(const r of rounds){
+      const idx = state.rounds.findIndex(x=>x.id===r.id);
+      const dt = new Date(r.ts);
+      const tsStr = dt.toLocaleString();
+      const sum = (r.amounts||[]).slice(0,n).reduce((a,b)=>a+Number(b||0),0);
+      const sumOk = Math.abs(sum) < 1e-9;
+
+      const detailRows = (r.amounts||[]).slice(0,n).map((v,i)=>{
+        const num = Number(v||0);
+        return `<tr><td>${escapeHtml(state.players[i]||("玩家"+(i+1)))}</td>
+                <td class="${num>=0?"pos":"neg"}">${num>=0?"+":""}${num}</td></tr>`;
+      }).join("");
+
+      const box = document.createElement("details");
+      box.innerHTML = `
+        <summary class="flex-between">
+          <div>
+            <div class="${sumOk?"pos":"neg"}" style="font-weight:900">
+              第 ${idx+1} 局 · ${tsStr} · 合计 ${sumOk?"0":"≠0"}
+            </div>
+            <div class="muted small">ID：${r.id}</div>
+          </div>
+          <div class="row">
+            <button class="btn-danger" data-del="${r.id}" type="button">删除</button>
+          </div>
+        </summary>
+        <div style="margin-top:10px;">
+          <table>
+            <thead><tr><th>玩家</th><th>本局</th></tr></thead>
+            <tbody>${detailRows}</tbody>
+          </table>
+        </div>
+      `;
+      roundsBox.appendChild(box);
+    }
+
+    roundsBox.querySelectorAll("button[data-del]").forEach(btn=>{
+      btn.addEventListener("click",(e)=>{
+        e.preventDefault();
+        const id = btn.getAttribute("data-del");
+        deleteRound(id);
+      });
+    });
+  }
+
+  function rebuildAll(){
+    // 修正 players 长度
+    if(!Array.isArray(state.players)) state.players = PRESET_NAMES.slice();
+    state.players = state.players.slice(0, state.playerCount);
+    while(state.players.length < state.playerCount){
+      state.players.push(PRESET_NAMES[state.players.length] || ("玩家"+(state.players.length+1)));
+    }
+    rebuildHome();
+    rebuildSettings();
+    rebuildEdit();
+    rebuildDrawer();
+  }
+
+  // ---------- Save flow with confirm ----------
+  function openConfirmModal(signed, sum){
+    confirmList.innerHTML = "";
+    for(let i=0;i<state.playerCount;i++){
+      const v = signed[i];
+      const item = document.createElement("div");
+      item.className = "list-item";
+      item.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+          <div style="font-weight:900;">${escapeHtml(state.players[i]||("玩家"+(i+1)))}</div>
+          <div class="${v>=0?"pos":"neg"}" style="font-size:16px;">${v>=0?"+":""}${v}</div>
+        </div>
+      `;
+      confirmList.appendChild(item);
+    }
+    confirmSum.innerHTML = `本局合计：<b style="color:${Math.abs(sum)<1e-9 ? 'var(--ok)' : 'var(--bad)'}">${sum}</b>（必须为 0）`;
+    confirmMask.style.display = "flex";
+  }
+  function closeConfirmModal(){
+    confirmMask.style.display = "none";
+  }
+
+  function requestSave(){
+    const res = validateAndPreview();
+    if(!res.ok) return;
+    pendingSignedAmounts = res.signed;
+    pendingWinner = Number(winnerSelect.value);
+    openConfirmModal(res.signed, res.sum);
+  }
+
+  function confirmSave(){
+    if(!pendingSignedAmounts) return;
+
+    state.rounds.push({
+      id: "R" + Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+      ts: Date.now(),
+      winnerIndex: pendingWinner,
+      amounts: pendingSignedAmounts.slice()
+    });
+    saveState();
+
+    // 清理
+    pendingSignedAmounts = null;
+    pendingWinner = null;
+    closeConfirmModal();
+
+    // 刷新
+    rebuildHome();
+    rebuildDrawer();
+    // 清空本局输入
+    clearInputs();
+    alert("已保存本局。");
+  }
+
+  function clearInputs(){
+    winnerSelect.value = "-1";
+    for(let i=0;i<state.playerCount;i++){
+      const inp = $("amtInp_"+i);
+      const sel = $("amtSel_"+i);
+      if(inp) inp.value = "";
+      if(sel) sel.value = "";
+      const tag = $("winnerTag_"+i);
+      if(tag) tag.innerHTML = "";
+    }
+    showSumMsg("warn","请选择胜利者并填写金额。");
+  }
+
+  // ---------- Settings save ----------
+  function saveSettings(){
+    const n = Number(playerCountEl.value);
+    state.playerCount = n;
+
+    const players = [];
+    for(let i=0;i<n;i++){
+      const selV = $("nameSel_"+i)?.value || "";
+      const customV = ($("nameCustom_"+i)?.value || "").trim();
+
+      if(selV && selV !== "__custom__"){
+        players.push(selV);
+      }else{
+        players.push(customV || ("玩家"+(i+1)));
+      }
+    }
+    state.players = players;
+
+    saveState();
+    rebuildAll();
+    alert("设置已保存。");
+  }
+
+  // ---------- Drawer ----------
+  function openDrawer(){
+    drawerMask.style.display = "block";
+    drawer.classList.add("open");
+  }
+  function closeDrawer(){
+    drawerMask.style.display = "none";
+    drawer.classList.remove("open");
+  }
+
+  // ---------- Delete / Reset ----------
+  function deleteRound(id){
+    const idx = state.rounds.findIndex(r=>r.id===id);
+    if(idx < 0) return;
+    if(!confirm("确定删除该局吗？")) return;
+    state.rounds.splice(idx,1);
+    saveState();
+    rebuildHome();
+    rebuildDrawer();
+  }
+  function deleteLast(){
+    if(state.rounds.length===0) return;
+    const idx = state.rounds.length-1;
+    if(!confirm(`确定删除最后一局（第 ${idx+1} 局）吗？`)) return;
+    state.rounds.splice(idx,1);
+    saveState();
+    rebuildHome();
+    rebuildDrawer();
+  }
+  function resetAll(){
+    if(!confirm("第 1 次确认：确定清空全部数据吗？")) return;
+    if(!confirm("第 2 次确认：清空后不可恢复，确定吗？")) return;
+    if(!confirm("第 3 次确认：最后确认，真的要清空吗？")) return;
+
+    deleteCookie(COOKIE_KEY);
+    state = defaultState();
+    saveState();
+    rebuildAll();
+    clearInputs();
+    alert("已清空。");
+  }
+
+  // ---------- Bind Events ----------
+  tabHomeBtn.addEventListener("click", ()=>openTab("home"));
+  tabEditBtn.addEventListener("click", ()=>openTab("edit"));
+  tabSettingsBtn.addEventListener("click", ()=>openTab("settings"));
+
+  btnGoEdit.addEventListener("click", ()=>openTab("edit"));
+  btnGoSettings.addEventListener("click", ()=>openTab("settings"));
+  btnRefresh.addEventListener("click", rebuildHome);
+
+  btnOpenDetails.addEventListener("click", openDrawer);
+  btnCloseDetails.addEventListener("click", closeDrawer);
+  drawerMask.addEventListener("click", closeDrawer);
+  btnDeleteLast.addEventListener("click", deleteLast);
+
+  btnResetAll.addEventListener("click", resetAll);
+
+  btnSaveSettings.addEventListener("click", saveSettings);
+  playerCountEl.addEventListener("change", ()=>{
+    // 临时仅重建 settings UI（不落库，等点保存）
+    const n = Number(playerCountEl.value);
+    const backup = JSON.parse(JSON.stringify(state));
+    state.playerCount = n;
+    state.players = backup.players.slice(0,n);
+    while(state.players.length<n){
+      state.players.push(PRESET_NAMES[state.players.length] || ("玩家"+(state.players.length+1)));
+    }
+    rebuildSettings();
+    state = backup;
+  });
+
+  btnClearInputs.addEventListener("click", clearInputs);
+  btnRequestSave.addEventListener("click", requestSave);
+  btnAutoFillWinner.addEventListener("click", autoFillWinner);
+
+  btnCloseConfirm.addEventListener("click", closeConfirmModal);
+  btnCancelSave.addEventListener("click", closeConfirmModal);
+  confirmMask.addEventListener("click", (e)=>{
+    if(e.target === confirmMask) closeConfirmModal();
+  });
+  btnConfirmSave.addEventListener("click", confirmSave);
+
+  // ---------- Init ----------
+  // 修正默认名字（如果用户第一次进入或数据坏）
+  if(state.playerCount !== 3 && state.playerCount !== 4) state.playerCount = 4;
+  if(!Array.isArray(state.players) || state.players.length===0) state.players = PRESET_NAMES.slice();
+  state.players = state.players.slice(0, state.playerCount);
+  while(state.players.length < state.playerCount){
+    state.players.push(PRESET_NAMES[state.players.length] || ("玩家"+(state.players.length+1)));
+  }
+  saveState();
+  rebuildAll();
+  openTab("home");
+})();
+</script>
+
+</body>
+</html>
