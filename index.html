@@ -382,7 +382,7 @@
   <div id="tabSettings" style="display:none;">
     <div class="card">
       <div class="pill">基础设置</div>
-      <div class="muted" style="margin-top:6px;">默认姓名支持选择：陈彬、黄晓芹、黄晓燕、谢绵令；也支持自定义输入。</div>
+      <div class="muted" style="margin-top:6px;">默认姓名支持选择：彬、芹、燕、令；也支持自定义输入。</div>
 
       <div class="sep"></div>
 
@@ -492,7 +492,7 @@
     <div class="modal-head">
       <div class="modal-title-wrap">
         <div class="bigTitle">结算分账（转账建议）</div>
-        <div class="modal-subtitle">优先撮合：陈彬↔黄晓芹，谢绵令↔黄晓燕</div>
+        <div class="modal-subtitle">优先撮合：彬↔芹，令↔燕</div>
       </div>
       <button class="btn-ghost modal-close" id="btnCloseSettle">关闭</button>
     </div>
@@ -514,7 +514,7 @@
 <script>
 (function(){
   const STORE_KEY = "POKER_MONEY_V3_6_LS";
-  const PRESET_NAMES = ["陈彬","黄晓芹","黄晓燕","谢绵令"];
+  const PRESET_NAMES = ["彬","芹","燕","令"];
 
   // ---------- localStorage ----------
   function loadState(){
@@ -541,7 +541,7 @@
   function defaultState(){
     return {
       playerCount: 4,
-      players: ["陈彬","黄晓芹","黄晓燕","谢绵令"],
+      players: ["彬","芹","燕","令"],
       rounds: [],
       meta: { emptyGuideShownOnce: false }
     };
@@ -1326,8 +1326,8 @@
       matchOneToOne(b, a);
     }
 
-    settlePair("陈彬","黄晓芹");
-    settlePair("谢绵令","黄晓燕");
+    settlePair("彬","芹");
+    settlePair("令","燕");
 
     payers.sort((a,b)=>b.remain-a.remain);
     receivers.sort((a,b)=>b.remain-a.remain);
