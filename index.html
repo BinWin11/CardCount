@@ -176,45 +176,44 @@
 
     /* ✅ v3.5：所有弹窗强制正中间（iPad/iPhone都不偏下） */
     .modal-mask{
-      position:fixed; inset:0;
-      background:rgba(0,0,0,.60);
-      z-index:200;
-      display:none;
-      /* 用 flex 确保居中 */
-      display:none;
-      align-items:center;
-      justify-content:center;
-      padding:
-        max(14px, env(safe-area-inset-top))
-        max(14px, env(safe-area-inset-right))
-        max(14px, env(safe-area-inset-bottom))
-        max(14px, env(safe-area-inset-left));
-    }
-    .modal{
-      width:min(760px, 96vw);
-      max-height:82vh; /* 关键：避免按钮跑出屏幕 */
-      background:rgba(18,26,43,.98);
-      border:1px solid var(--line);
-      border-radius:16px;
-      box-shadow:var(--shadow);
-      overflow:hidden;
-      display:flex;
-      flex-direction:column;
-      /* 再加一层“绝对居中保险” */
-      position:relative;
-    }
-    .modal-head{
-      padding:12px 14px;
-      border-bottom:1px solid var(--line);
-      display:flex;justify-content:space-between;align-items:center;gap:10px;
-      flex:0 0 auto;
-    }
-    .modal-body{
-      padding:14px;
-      overflow:auto;
-      -webkit-overflow-scrolling: touch;
-      flex:1 1 auto;
-    }
+	  position:fixed;
+	  inset:0;
+	  background:rgba(0,0,0,.60);
+	  z-index:200;
+
+	  /* 不再用 flex 居中，避免 iPad 视口偏差 */
+	  display:none;
+	}
+	.modal{
+	  position:fixed;
+	  left:50%;
+	  top: var(--modal-center-top, 50vh);
+	  transform: translate(-50%, -50%);
+
+	  width:min(760px, 96vw);
+
+	  /* 高度按“真实可视高度”裁剪，确保底部按钮永远可滚到 */
+	  max-height: calc(var(--vvh, 100vh) - 24px);
+
+	  background:rgba(18,26,43,.98);
+	  border:1px solid var(--line);
+	  border-radius:16px;
+	  box-shadow:var(--shadow);
+	  overflow:hidden;
+	  display:flex;
+	  flex-direction:column;
+	}
+	.modal-head{
+	  flex:0 0 auto;
+	}
+	.modal-body{
+	  flex:1 1 auto;
+	  overflow:auto;
+	  -webkit-overflow-scrolling: touch;
+
+	  /* iPad 底部安全区：避免按钮被 Home Indicator 挡住 */
+	  padding-bottom: max(14px, env(safe-area-inset-bottom));
+	}
     .bigTitle{font-size:18px;font-weight:1000}
     .tipBox{margin-top:10px;border:1px solid var(--line);border-radius:14px;padding:12px;background:rgba(0,0,0,.14);}
     .list-item{padding:10px 10px;border:1px solid var(--line);border-radius:12px;margin:10px 0;background:rgba(0,0,0,.14);}
@@ -576,7 +575,7 @@
     if(isHome){ requestAnimationFrame(drawLineChart); }
   }
 
-  function openEmptyModal(){ emptyMask.style.display = "flex"; }
+  function openEmptyModal(){ showModal(emptyMask); }
   function closeEmptyModal(){ emptyMask.style.display = "none"; }
 
   function maybeAutoShowEmptyGuide(reason){
@@ -747,7 +746,7 @@
       confirmList.appendChild(item);
     }
     confirmSum.innerHTML = `本局合计：<b class="${Math.abs(sum)<1e-9?'pos':'neg'}">${sum}</b>（必须为 0）`;
-    confirmMask.style.display = "flex";
+    showModal(confirmMask);
   }
   function closeConfirmModal(){ confirmMask.style.display = "none"; }
 
@@ -1165,7 +1164,7 @@
         settleList.appendChild(item);
       });
     }
-    settleMask.style.display = "flex";
+    showModal(settleMask);
   }
   function closeSettleModal(){ settleMask.style.display = "none"; }
 
@@ -1289,6 +1288,39 @@
   });
 
   window.addEventListener("resize", ()=>{ drawLineChart(); });
+  /* ✅ iPad 关键修复：用 visualViewport 计算“真正可视区域中心”，强制所有弹窗居中 */
+	function updateViewportVars(){
+	  const vv = window.visualViewport;
+	  const h = vv ? vv.height : window.innerHeight;
+	  const topOffset = vv ? vv.offsetTop : 0;
+
+	  // 真实可视高度
+	  document.documentElement.style.setProperty("--vvh", h + "px");
+	  // 真实中心点（相对于 layout viewport）
+	  document.documentElement.style.setProperty("--modal-center-top", (topOffset + h/2) + "px");
+	}
+
+	// 打开任意弹窗时都刷新一次（避免地址栏收缩导致偏移）
+	function showModal(maskEl){
+	  updateViewportVars();
+	  maskEl.style.display = "block";
+	}
+	function hideModal(maskEl){
+	  maskEl.style.display = "none";
+	}
+
+	// 监听视口变化：旋转、地址栏变化、键盘弹出/收起
+	updateViewportVars();
+	window.addEventListener("resize", updateViewportVars);
+	if (window.visualViewport){
+	  window.visualViewport.addEventListener("resize", updateViewportVars);
+	  window.visualViewport.addEventListener("scroll", updateViewportVars);
+	}
+
+	/* ✅ 把你原来的 “maskEl.style.display='flex'” 改为 showModal(maskEl)
+	   ✅ 把你原来的 “maskEl.style.display='none'” 保持不变或改为 hideModal(maskEl)
+	   只改显示方式，不动业务逻辑
+	*/
 
   // ---------- Init ----------
   if(![2,3,4].includes(state.playerCount)) state.playerCount = 4;
