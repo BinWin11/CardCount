@@ -3,12 +3,18 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
-  <title>牌局记账 v3.5（localStorage + 折线图 + 横向条 + 结算 + 弹窗强制居中）</title>
+  <title>牌局记账 v3.6（localStorage + 折线图 + 横向条 + 结算 + iPad弹窗强制居中）</title>
   <style>
     :root{
       --bg:#0b1220; --card:#121a2b; --muted:#7f8aa3; --text:#e8eefc;
       --ok:#25c26e; --bad:#ff5c6c; --warn:#ffcc66; --line:rgba(255,255,255,.09);
       --btn:#2a3a63; --btn2:#1c2743; --shadow:0 10px 30px rgba(0,0,0,.35);
+
+      /* ✅ v3.6：弹窗专用配色（与主体区分更明显） */
+      --modal-bg: rgba(26, 36, 64, .98);
+      --modal-bg2: rgba(20, 28, 52, .98);
+      --modal-line: rgba(255,255,255,.14);
+      --modal-shadow: 0 22px 70px rgba(0,0,0,.62);
     }
     *{box-sizing:border-box}
     body{
@@ -131,7 +137,7 @@
     .amt-line{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px}
     .amt-line input[type="number"]{width:160px}
 
-    /* ✅ v3.5：快捷按钮加大（iPad好按） */
+    /* 快捷按钮（iPad好按） */
     .quickbar{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
     .chip{
       border:1px solid var(--line);
@@ -174,47 +180,83 @@
     .chartCanvas{width:100%;height:220px;display:block;}
     .chartHint{margin-top:8px;font-size:12px;color:var(--muted);line-height:1.5;}
 
-    /* ✅ v3.5：所有弹窗强制正中间（iPad/iPhone都不偏下） */
+    /* ✅ v3.6：iPad 弹窗强制居中（visualViewport） + 顶部布局更稳 + 颜色区分更明显 */
     .modal-mask{
-	  position:fixed;
-	  inset:0;
-	  background:rgba(0,0,0,.60);
-	  z-index:200;
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,.66); /* 更明显的遮罩 */
+      z-index:200;
+      display:none;
+    }
+    .modal{
+      position:fixed;
+      left:50%;
+      top: var(--modal-center-top, 50vh);
+      transform: translate(-50%, -50%);
 
-	  /* 不再用 flex 居中，避免 iPad 视口偏差 */
-	  display:none;
-	}
-	.modal{
-	  position:fixed;
-	  left:50%;
-	  top: var(--modal-center-top, 50vh);
-	  transform: translate(-50%, -50%);
+      width:min(760px, 96vw);
+      max-height: calc(var(--vvh, 100vh) - 24px);
 
-	  width:min(760px, 96vw);
+      background: linear-gradient(180deg, var(--modal-bg), var(--modal-bg2));
+      border:1px solid var(--modal-line);
+      border-radius:18px;
+      box-shadow: var(--modal-shadow);
+      overflow:hidden;
 
-	  /* 高度按“真实可视高度”裁剪，确保底部按钮永远可滚到 */
-	  max-height: calc(var(--vvh, 100vh) - 24px);
+      display:flex;
+      flex-direction:column;
+    }
 
-	  background:rgba(18,26,43,.98);
-	  border:1px solid var(--line);
-	  border-radius:16px;
-	  box-shadow:var(--shadow);
-	  overflow:hidden;
-	  display:flex;
-	  flex-direction:column;
-	}
-	.modal-head{
-	  flex:0 0 auto;
-	}
-	.modal-body{
-	  flex:1 1 auto;
-	  overflow:auto;
-	  -webkit-overflow-scrolling: touch;
+    /* ✅ v3.6：弹窗头部布局修复：对齐、间距、层次 */
+    .modal-head{
+      flex:0 0 auto;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
 
-	  /* iPad 底部安全区：避免按钮被 Home Indicator 挡住 */
-	  padding-bottom: max(14px, env(safe-area-inset-bottom));
-	}
-    .bigTitle{font-size:18px;font-weight:1000}
+      padding:12px 14px;
+      border-bottom:1px solid rgba(255,255,255,.12);
+      background: rgba(0,0,0,.10);
+      backdrop-filter: blur(6px);
+    }
+    .modal-title-wrap{
+      min-width:0;
+      display:flex;
+      flex-direction:column;
+      gap:2px;
+    }
+    .bigTitle{
+      font-size:18px;
+      font-weight:1000;
+      line-height:1.15;
+      letter-spacing:.2px;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    .modal-subtitle{
+      font-size:12px;
+      color:rgba(232,238,252,.62);
+      line-height:1.2;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    .modal-close{
+      flex:0 0 auto;
+      border-radius:12px;
+      padding:10px 12px;
+    }
+
+    .modal-body{
+      flex:1 1 auto;
+      padding:14px;
+      overflow:auto;
+      -webkit-overflow-scrolling: touch;
+      padding-bottom: max(14px, env(safe-area-inset-bottom));
+    }
+
     .tipBox{margin-top:10px;border:1px solid var(--line);border-radius:14px;padding:12px;background:rgba(0,0,0,.14);}
     .list-item{padding:10px 10px;border:1px solid var(--line);border-radius:12px;margin:10px 0;background:rgba(0,0,0,.14);}
     .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
@@ -225,7 +267,7 @@
 
 <div class="topbar">
   <div class="topbar-inner">
-    <div class="title">牌局记账 v3.5 <span style="opacity:.6;font-size:12px;">（localStorage）</span></div>
+    <div class="title">牌局记账 v3.6 <span style="opacity:.6;font-size:12px;">（localStorage）</span></div>
 
     <div class="tabs">
       <div class="tabbtn active" id="tabHomeBtn">主页</div>
@@ -287,7 +329,7 @@
         <div class="pill">规则提示</div>
         <div class="muted" style="margin-top:8px;">
           - 选择胜利者后：胜者为正，其余为负（你输入的是绝对值）。<br/>
-          - 保存会弹确认弹窗（已强制居中，iPad可点到按钮）。<br/>
+          - 保存会弹确认弹窗（iPad 已强制居中）。<br/>
           - 每局合计必须为 0 才能保存（胜者赢的钱=其他人输的钱之和）。
         </div>
       </div>
@@ -390,12 +432,15 @@
   </div>
 </div>
 
-<!-- 无数据引导弹窗（强制居中） -->
+<!-- 无数据引导弹窗 -->
 <div class="modal-mask" id="emptyMask" aria-modal="true" role="dialog">
   <div class="modal">
     <div class="modal-head">
-      <div class="bigTitle">还没有数据，先去设置一下吧</div>
-      <button class="btn-ghost" id="btnCloseEmpty">关闭</button>
+      <div class="modal-title-wrap">
+        <div class="bigTitle">还没有数据，先去设置一下吧</div>
+        <div class="modal-subtitle">建议先配置人数和玩家姓名，再开始记账</div>
+      </div>
+      <button class="btn-ghost modal-close" id="btnCloseEmpty">关闭</button>
     </div>
     <div class="modal-body">
       <div class="muted">当前没有任何牌局记录。建议先完成「人数/玩家姓名」基础设置，再开始记账。</div>
@@ -404,7 +449,7 @@
         <div class="muted" style="margin-top:8px; line-height:1.7;">
           1）去设置人数（2/3/4）和玩家姓名；<br/>
           2）回到记账选择胜利者，输入金额；<br/>
-          3）非胜利者都填完后系统自动算胜利者，再保存。
+          3）非胜利者填完后系统自动算胜利者，再保存。
         </div>
       </div>
       <div class="sep"></div>
@@ -416,15 +461,18 @@
   </div>
 </div>
 
-<!-- 记账确认弹窗（强制居中，按钮可点） -->
+<!-- 记账确认弹窗 -->
 <div class="modal-mask" id="confirmMask" aria-modal="true" role="dialog">
   <div class="modal">
     <div class="modal-head">
-      <div class="bigTitle">确认保存本局？</div>
-      <button class="btn-ghost" id="btnCloseConfirm">关闭</button>
+      <div class="modal-title-wrap">
+        <div class="bigTitle">确认保存本局？</div>
+        <div class="modal-subtitle">请核对本局金额（系统已自动加/减号）</div>
+      </div>
+      <button class="btn-ghost modal-close" id="btnCloseConfirm">关闭</button>
     </div>
     <div class="modal-body">
-      <div class="muted">以下为本局最终金额（已按胜利者自动加/减号）：</div>
+      <div class="muted">以下为本局最终金额：</div>
       <div class="sep"></div>
       <div id="confirmList"></div>
       <div class="sep"></div>
@@ -438,17 +486,19 @@
   </div>
 </div>
 
-<!-- 结算分账弹窗（强制居中） -->
+<!-- 结算分账弹窗 -->
 <div class="modal-mask" id="settleMask" aria-modal="true" role="dialog">
   <div class="modal">
     <div class="modal-head">
-      <div class="bigTitle">结算分账（转账建议）</div>
-      <button class="btn-ghost" id="btnCloseSettle">关闭</button>
+      <div class="modal-title-wrap">
+        <div class="bigTitle">结算分账（转账建议）</div>
+        <div class="modal-subtitle">优先撮合：陈彬↔黄晓芹，谢绵令↔黄晓燕</div>
+      </div>
+      <button class="btn-ghost modal-close" id="btnCloseSettle">关闭</button>
     </div>
     <div class="modal-body">
       <div class="muted">
-        规则：累计为负的人需要付钱；累计为正的人收钱。<br/>
-        优先撮合：<b>陈彬↔黄晓芹</b>，其次 <b>谢绵令↔黄晓燕</b>，剩余再通用撮合。
+        规则：累计为负的人需要付钱；累计为正的人收钱。
       </div>
       <div class="sep"></div>
       <div id="settleList"></div>
@@ -463,9 +513,10 @@
 
 <script>
 (function(){
-  const STORE_KEY = "POKER_MONEY_V3_5_LS";
+  const STORE_KEY = "POKER_MONEY_V3_6_LS";
   const PRESET_NAMES = ["陈彬","黄晓芹","黄晓燕","谢绵令"];
 
+  // ---------- localStorage ----------
   function loadState(){
     const raw = localStorage.getItem(STORE_KEY);
     if(!raw) return defaultState();
@@ -479,9 +530,14 @@
       return defaultState();
     }
   }
-  function saveState(){ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
-  function clearStorage(){ localStorage.removeItem(STORE_KEY); }
+  function saveState(){
+    localStorage.setItem(STORE_KEY, JSON.stringify(state));
+  }
+  function clearStorage(){
+    localStorage.removeItem(STORE_KEY);
+  }
 
+  // ---------- State ----------
   function defaultState(){
     return {
       playerCount: 4,
@@ -492,8 +548,11 @@
   }
 
   let state = loadState();
+
+  // ---------- DOM ----------
   const $ = (id)=>document.getElementById(id);
 
+  // Tabs
   const tabHomeBtn = $("tabHomeBtn");
   const tabEditBtn = $("tabEditBtn");
   const tabSettingsBtn = $("tabSettingsBtn");
@@ -501,9 +560,11 @@
   const tabEdit = $("tabEdit");
   const tabSettings = $("tabSettings");
 
+  // Top actions
   const btnGoEditTop = $("btnGoEditTop");
   const btnOpenDetails = $("btnOpenDetails");
 
+  // Home
   const metaInfo = $("metaInfo");
   const scoreboardBody = $("scoreboardBody");
   const btnGoSettings = $("btnGoSettings");
@@ -511,12 +572,15 @@
   const btnRefresh = $("btnRefresh");
   const btnOpenSettle = $("btnOpenSettle");
 
+  // Line chart
   const lineChart = $("lineChart");
 
+  // Settings
   const playerCountEl = $("playerCount");
   const playerNamesBox = $("playerNamesBox");
   const btnSaveSettings = $("btnSaveSettings");
 
+  // Edit
   const playerCountReadOnly = $("playerCountReadOnly");
   const winnerSelect = $("winnerSelect");
   const amountInputsBox = $("amountInputsBox");
@@ -525,6 +589,7 @@
   const btnRequestSave = $("btnRequestSave");
   const btnAutoFillWinner = $("btnAutoFillWinner");
 
+  // Drawer
   const drawer = $("drawer");
   const drawerMask = $("drawerMask");
   const btnCloseDetails = $("btnCloseDetails");
@@ -532,11 +597,13 @@
   const drawerMeta = $("drawerMeta");
   const btnDeleteLast = $("btnDeleteLast");
 
+  // Empty modal
   const emptyMask = $("emptyMask");
   const btnCloseEmpty = $("btnCloseEmpty");
   const btnGoSettingsFromEmpty = $("btnGoSettingsFromEmpty");
   const btnGoEditFromEmpty = $("btnGoEditFromEmpty");
 
+  // Confirm modal
   const confirmMask = $("confirmMask");
   const btnCloseConfirm = $("btnCloseConfirm");
   const btnCancelSave = $("btnCancelSave");
@@ -544,11 +611,13 @@
   const confirmList = $("confirmList");
   const confirmSum = $("confirmSum");
 
+  // Settle modal
   const settleMask = $("settleMask");
   const btnCloseSettle = $("btnCloseSettle");
   const settleList = $("settleList");
   const btnCopySettle = $("btnCopySettle");
 
+  // pending for confirm
   let pendingSigned = null;
   let pendingWinner = null;
 
@@ -572,15 +641,44 @@
     tabHomeBtn.classList.toggle("active", isHome);
     tabEditBtn.classList.toggle("active", isEdit);
     tabSettingsBtn.classList.toggle("active", isSettings);
-    if(isHome){ requestAnimationFrame(drawLineChart); }
+
+    if(isHome){
+      requestAnimationFrame(drawLineChart);
+    }
   }
 
+  // ---------- ✅ v3.6：iPad 关键修复：visualViewport 强制居中 ----------
+  function updateViewportVars(){
+    const vv = window.visualViewport;
+    const h = vv ? vv.height : window.innerHeight;
+    const topOffset = vv ? vv.offsetTop : 0;
+    document.documentElement.style.setProperty("--vvh", h + "px");
+    document.documentElement.style.setProperty("--modal-center-top", (topOffset + h/2) + "px");
+  }
+  function showModal(maskEl){
+    updateViewportVars();
+    maskEl.style.display = "block";
+  }
+  function hideModal(maskEl){
+    maskEl.style.display = "none";
+  }
+  updateViewportVars();
+  window.addEventListener("resize", updateViewportVars);
+  if (window.visualViewport){
+    window.visualViewport.addEventListener("resize", updateViewportVars);
+    window.visualViewport.addEventListener("scroll", updateViewportVars);
+  }
+
+  // ---------- Empty guide modal ----------
   function openEmptyModal(){ showModal(emptyMask); }
-  function closeEmptyModal(){ emptyMask.style.display = "none"; }
+  function closeEmptyModal(){ hideModal(emptyMask); }
 
   function maybeAutoShowEmptyGuide(reason){
     const hasRounds = (state.rounds?.length || 0) > 0;
-    if(hasRounds){ closeEmptyModal(); return; }
+    if(hasRounds){
+      closeEmptyModal();
+      return;
+    }
     if(reason === "reset"){
       state.meta.emptyGuideShownOnce = false;
       saveState();
@@ -594,6 +692,7 @@
     }
   }
 
+  // ---------- Compute ----------
   function normalizePlayers(){
     if(!Array.isArray(state.players)) state.players = PRESET_NAMES.slice();
     state.players = state.players.slice(0, state.playerCount);
@@ -628,16 +727,29 @@
     return { rounds, series };
   }
 
-  /* ✅ v3.5：4人局快捷按钮仅 1/2/3（不出现6和0），其余人数保持原样 */
+  // 4人局快捷：仅 1/2/3（不出现6和0）
   function quickChipsHtml(i){
-    const n = state.playerCount;
-    const values = (n === 4) ? [1,2,3] : [1,2,3,6,0];
-    return `
-      <div class="quickbar">
-        ${values.map(v=>`<div class="chip" data-idx="${i}" data-v="${v}">${v}</div>`).join("")}
-      </div>
-    `;
-  }
+	  const n = state.playerCount;
+	  let values;
+
+	  if (n === 4){
+		values = [1, 2, 3];
+	  } else if (n === 3){
+		values = [1, 2, 3];
+	  } else if (n === 2){
+		values = [1, 2, 3, 4];
+	  } else {
+		// 兜底（理论上不会走到）
+		values = [1, 2, 3, 6, 0];
+	  }
+
+	  return `
+		<div class="quickbar">
+		  ${values.map(v=>`<div class="chip" data-idx="${i}" data-v="${v}">${v}</div>`).join("")}
+		</div>
+	  `;
+	}
+
 
   function getAbsValue(i){
     const inp = $("amtInp_"+i);
@@ -656,6 +768,7 @@
     if(!silent) validateAndPreview(true);
   }
 
+  // 自动计算胜利者：当非胜利者都填完 -> winner = sum(others)
   function maybeAutoCalcWinner(){
     const n = state.playerCount;
     const win = Number(winnerSelect.value);
@@ -731,6 +844,7 @@
     validateAndPreview(false);
   }
 
+  // ---------- Confirm save modal ----------
   function openConfirmModal(signed, sum){
     confirmList.innerHTML = "";
     for(let i=0;i<state.playerCount;i++){
@@ -748,7 +862,7 @@
     confirmSum.innerHTML = `本局合计：<b class="${Math.abs(sum)<1e-9?'pos':'neg'}">${sum}</b>（必须为 0）`;
     showModal(confirmMask);
   }
-  function closeConfirmModal(){ confirmMask.style.display = "none"; }
+  function closeConfirmModal(){ hideModal(confirmMask); }
 
   function requestSave(){
     const res = validateAndPreview(true);
@@ -783,6 +897,7 @@
     alert("已保存本局。");
   }
 
+  // ---------- UI Builders ----------
   function rebuildHome(){
     const totals = computeTotals();
     scoreboardBody.innerHTML = "";
@@ -896,7 +1011,9 @@
     });
 
     for(let i=0;i<n;i++){
-      $("amtInp_"+i).addEventListener("input", ()=>{ validateAndPreview(true); });
+      $("amtInp_"+i).addEventListener("input", ()=>{
+        validateAndPreview(true);
+      });
     }
 
     winnerSelect.addEventListener("change", ()=>{
@@ -987,6 +1104,7 @@
     showSumMsg("warn","请选择胜利者并填写金额。");
   }
 
+  // ---------- Settings save ----------
   function saveSettings(){
     const n = Number(playerCountEl.value);
     state.playerCount = n;
@@ -1005,6 +1123,7 @@
     alert("设置已保存。");
   }
 
+  // ---------- Drawer ----------
   function openDrawer(){
     drawerMask.style.display = "block";
     drawer.classList.add("open");
@@ -1014,6 +1133,7 @@
     drawer.classList.remove("open");
   }
 
+  // ---------- Delete / Reset ----------
   function deleteRound(id){
     const idx = state.rounds.findIndex(r=>r.id===id);
     if(idx < 0) return;
@@ -1044,6 +1164,7 @@
     alert("已清空。");
   }
 
+  // ---------- Line chart ----------
   function resizeCanvasToDisplaySize(canvas){
     const rect = canvas.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
@@ -1064,9 +1185,9 @@
     const w = lineChart.width, h = lineChart.height;
     ctx.clearRect(0,0,w,h);
 
-    const { rounds, series } = computeCumulativeSeries();
+    const { series } = computeCumulativeSeries();
     const n = state.playerCount;
-    const m = rounds.length;
+    const m = (series[0]||[]).length;
 
     if(m === 0){
       ctx.fillStyle = "rgba(255,255,255,.55)";
@@ -1143,6 +1264,7 @@
     }
   }
 
+  // ---------- Settlement ----------
   function openSettleModal(){
     const totals = computeTotals();
     const names = state.players.slice(0,state.playerCount);
@@ -1166,7 +1288,7 @@
     }
     showModal(settleMask);
   }
-  function closeSettleModal(){ settleMask.style.display = "none"; }
+  function closeSettleModal(){ hideModal(settleMask); }
 
   function generateTransfersWithPriority(names, totals){
     const n = names.length;
@@ -1228,17 +1350,20 @@
     const names = state.players.slice(0,state.playerCount);
     const transfers = generateTransfersWithPriority(names, totals);
     if(transfers.length===0) return "无需转账（所有人累计均为0）";
-    return transfers.map(t=>`${t.from} -> ${t.to} : ¥${t.amount}`).join("\\n");
+    return transfers.map(t=>`${t.from} -> ${t.to} : ¥${t.amount}`).join("\n");
   }
 
-  // ---------- Events ----------
+  // ---------- Bind Events ----------
   tabHomeBtn.addEventListener("click", ()=>openTab("home"));
   tabEditBtn.addEventListener("click", ()=>openTab("edit"));
   tabSettingsBtn.addEventListener("click", ()=>openTab("settings"));
 
   btnGoEditTop.addEventListener("click", ()=>openTab("edit"));
   btnGoSettings.addEventListener("click", ()=>openTab("settings"));
-  btnRefresh.addEventListener("click", ()=>{ rebuildHome(); drawLineChart(); });
+  btnRefresh.addEventListener("click", ()=>{
+    rebuildHome();
+    drawLineChart();
+  });
 
   btnOpenDetails.addEventListener("click", openDrawer);
   btnCloseDetails.addEventListener("click", closeDrawer);
@@ -1264,16 +1389,19 @@
   btnRequestSave.addEventListener("click", requestSave);
   btnAutoFillWinner.addEventListener("click", autoFillWinner);
 
+  // Empty modal buttons
   btnCloseEmpty.addEventListener("click", closeEmptyModal);
   emptyMask.addEventListener("click", (e)=>{ if(e.target === emptyMask) closeEmptyModal(); });
   btnGoSettingsFromEmpty.addEventListener("click", ()=>{ closeEmptyModal(); openTab("settings"); });
   btnGoEditFromEmpty.addEventListener("click", ()=>{ closeEmptyModal(); openTab("edit"); });
 
+  // Confirm modal buttons
   btnCloseConfirm.addEventListener("click", closeConfirmModal);
   btnCancelSave.addEventListener("click", closeConfirmModal);
   confirmMask.addEventListener("click", (e)=>{ if(e.target === confirmMask) closeConfirmModal(); });
   btnConfirmSave.addEventListener("click", confirmSave);
 
+  // Settle modal
   btnOpenSettle.addEventListener("click", openSettleModal);
   btnCloseSettle.addEventListener("click", closeSettleModal);
   settleMask.addEventListener("click", (e)=>{ if(e.target === settleMask) closeSettleModal(); });
@@ -1288,39 +1416,6 @@
   });
 
   window.addEventListener("resize", ()=>{ drawLineChart(); });
-  /* ✅ iPad 关键修复：用 visualViewport 计算“真正可视区域中心”，强制所有弹窗居中 */
-	function updateViewportVars(){
-	  const vv = window.visualViewport;
-	  const h = vv ? vv.height : window.innerHeight;
-	  const topOffset = vv ? vv.offsetTop : 0;
-
-	  // 真实可视高度
-	  document.documentElement.style.setProperty("--vvh", h + "px");
-	  // 真实中心点（相对于 layout viewport）
-	  document.documentElement.style.setProperty("--modal-center-top", (topOffset + h/2) + "px");
-	}
-
-	// 打开任意弹窗时都刷新一次（避免地址栏收缩导致偏移）
-	function showModal(maskEl){
-	  updateViewportVars();
-	  maskEl.style.display = "block";
-	}
-	function hideModal(maskEl){
-	  maskEl.style.display = "none";
-	}
-
-	// 监听视口变化：旋转、地址栏变化、键盘弹出/收起
-	updateViewportVars();
-	window.addEventListener("resize", updateViewportVars);
-	if (window.visualViewport){
-	  window.visualViewport.addEventListener("resize", updateViewportVars);
-	  window.visualViewport.addEventListener("scroll", updateViewportVars);
-	}
-
-	/* ✅ 把你原来的 “maskEl.style.display='flex'” 改为 showModal(maskEl)
-	   ✅ 把你原来的 “maskEl.style.display='none'” 保持不变或改为 hideModal(maskEl)
-	   只改显示方式，不动业务逻辑
-	*/
 
   // ---------- Init ----------
   if(![2,3,4].includes(state.playerCount)) state.playerCount = 4;
