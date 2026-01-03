@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
-  <title>牌局记账 v4（localStorage + 自动胜者金额 + 图表）</title>
+  <title>牌局记账 v3.4（localStorage + 折线图 + 横向条 + 结算 + iPad弹窗适配）</title>
   <style>
     :root{
       --bg:#0b1220; --card:#121a2b; --muted:#7f8aa3; --text:#e8eefc;
@@ -47,9 +47,11 @@
     .btn-ghost{background:transparent;box-shadow:none}
     .btn-danger{background:linear-gradient(180deg,#5b2230,#3a1620);border-color:rgba(255,92,108,.25)}
     .btn-ok{background:linear-gradient(180deg,#1f5a3b,#143524);border-color:rgba(37,194,110,.25)}
+
     .wrap{max-width:1100px;margin:0 auto;padding:14px;}
     .grid{display:grid;grid-template-columns:1fr;gap:12px;margin-top:12px;}
     @media (min-width:900px){ .grid{grid-template-columns:1.2fr .8fr;} }
+
     .card{
       background:rgba(18,26,43,.92);
       border:1px solid var(--line);
@@ -62,27 +64,75 @@
     .sep{height:1px;background:var(--line);margin:12px 0}
     .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
     label{font-size:12px;color:var(--muted)}
-    input,select{
+    input{
       background:#0d1426;color:var(--text);border:1px solid var(--line);
       border-radius:12px;padding:10px 10px;font-size:15px;outline:none;
     }
+    select{
+      background:#0d1426;color:var(--text);border:1px solid var(--line);
+      border-radius:12px;padding:10px 10px;font-size:15px;outline:none;
+      min-width:150px;
+    }
     input:focus,select:focus{border-color:rgba(255,255,255,.25)}
     input[type="text"]{min-width:160px}
-    select{min-width:150px}
-    input[readonly]{opacity:.9}
     .msg{font-size:13px;margin-top:8px}
     .msg.ok{color:var(--ok)} .msg.bad{color:var(--bad)} .msg.warn{color:var(--warn)}
-    table{width:100%;border-collapse:collapse}
-    th,td{border-bottom:1px solid var(--line);padding:10px 6px;text-align:left;font-size:14px}
-    th{color:var(--muted);font-weight:800;font-size:12px}
-    .pos{color:var(--ok);font-weight:900}
-    .neg{color:var(--bad);font-weight:900}
 
-    /* Drawer（明细） */
+    table{width:100%;border-collapse:collapse}
+    th,td{border-bottom:1px solid var(--line);padding:12px 8px;text-align:left}
+    th{color:var(--muted);font-weight:900;font-size:13px}
+    .pos{color:var(--ok)}
+    .neg{color:var(--bad)}
+
+    /* ① 累计看板：人名 + 横向条 + 金额，同一行 */
+    .scoreRow{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      flex-wrap:nowrap;
+    }
+    .scoreName{
+      min-width:120px;
+      font-size:18px;
+      font-weight:1000;
+      letter-spacing:.2px;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    .scoreBarWrap{
+      flex:1;
+      height:16px;
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.16);
+      border-radius:999px;
+      position:relative;
+      overflow:hidden;
+    }
+    .scoreBarFill{
+      position:absolute;
+      top:0; bottom:0;
+      border-radius:999px;
+    }
+    .scoreAmt{
+      min-width:84px;
+      text-align:right;
+      font-size:22px;
+      font-weight:1000;
+      letter-spacing:.3px;
+      white-space:nowrap;
+    }
+    @media (min-width:900px){
+      .scoreName{font-size:20px; min-width:150px;}
+      .scoreAmt{font-size:26px; min-width:100px;}
+      .scoreBarWrap{height:18px;}
+    }
+
+    /* 侧边栏（明细） */
     .drawer-mask{position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:90; display:none;}
     .drawer{
       position:fixed; top:0; right:0; height:100vh;
-      width:min(520px, 92vw);
+      width:min(560px, 94vw);
       background:rgba(18,26,43,.98); backdrop-filter: blur(10px);
       border-left:1px solid var(--line);
       z-index:100;
@@ -93,7 +143,7 @@
     }
     .drawer.open{transform: translateX(0);}
     .drawer-head{padding:12px 12px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:center;justify-content:space-between}
-    .drawer-body{padding:12px;overflow:auto}
+    .drawer-body{padding:12px;overflow:auto;-webkit-overflow-scrolling:touch;}
     details{border:1px solid var(--line);border-radius:12px;padding:10px 10px;margin:10px 0;background:rgba(0,0,0,.14)}
     summary{cursor:pointer;list-style:none}
     summary::-webkit-details-marker{display:none}
@@ -101,9 +151,9 @@
     .small{font-size:12px}
 
     /* 金额输入块 */
-    .amt-box{min-width:250px;flex:1}
+    .amt-box{min-width:240px;flex:1}
     .amt-line{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px}
-    .amt-line input[type="number"]{width:120px}
+    .amt-line input[type="number"]{width:140px}
     .quickbar{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
     .chip{
       border:1px solid var(--line); border-radius:999px;
@@ -114,36 +164,79 @@
     .badgeWinner{
       display:inline-block; padding:3px 8px; border-radius:999px;
       border:1px solid rgba(37,194,110,.25);
-      color:var(--ok); font-size:12px; font-weight:800;
+      color:var(--ok); font-size:12px; font-weight:900;
       background:rgba(31,90,59,.25);
       margin-left:6px;
     }
 
-    /* 保存确认弹窗 */
+    /* 图表容器 */
+    .chartWrap{
+      border:1px solid var(--line);
+      border-radius:14px;
+      background:rgba(0,0,0,.14);
+      padding:10px;
+    }
+    .chartCanvas{
+      width:100%;
+      height:220px;
+      display:block;
+    }
+    .chartHint{
+      margin-top:8px;
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.5;
+    }
+
+    /* 通用弹窗（iPad 适配：不截断） */
     .modal-mask{
-      position:fixed; inset:0; background:rgba(0,0,0,.55);
-      z-index:120; display:none;
+      position:fixed; inset:0;
+      background:rgba(0,0,0,.60);
+      z-index:200;
+      display:none;
       align-items:center; justify-content:center;
-      padding:14px;
+      padding: max(14px, env(safe-area-inset-top))
+               max(14px, env(safe-area-inset-right))
+               max(14px, env(safe-area-inset-bottom))
+               max(14px, env(safe-area-inset-left));
     }
     .modal{
-      width:min(640px, 96vw);
+      width:min(760px, 96vw);
+      max-height:88vh;
       background:rgba(18,26,43,.98);
       border:1px solid var(--line);
       border-radius:16px;
       box-shadow:var(--shadow);
       overflow:hidden;
+      display:flex;
+      flex-direction:column;
     }
-    .modal-head{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
-    .modal-body{padding:14px;max-height:min(70vh,520px);overflow:auto}
-    .list-item{padding:10px 10px;border:1px solid var(--line);border-radius:12px;margin:10px 0;background:rgba(0,0,0,.14)}
-    .home-chart{
-      width:100%; height:260px;
+    .modal-head{
+      padding:12px 14px;
+      border-bottom:1px solid var(--line);
+      display:flex;justify-content:space-between;align-items:center;gap:10px;
+    }
+    .modal-body{
+      padding:14px;
+      overflow:auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .bigTitle{font-size:18px;font-weight:1000}
+    .tipBox{
+      margin-top:10px;
       border:1px solid var(--line);
       border-radius:14px;
-      background:rgba(0,0,0,.18);
+      padding:12px;
+      background:rgba(0,0,0,.14);
     }
-    @media (min-width:900px){ .home-chart{height:320px;} }
+    .list-item{
+      padding:10px 10px;
+      border:1px solid var(--line);
+      border-radius:12px;
+      margin:10px 0;
+      background:rgba(0,0,0,.14);
+    }
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
   </style>
 </head>
 
@@ -151,15 +244,17 @@
 
 <div class="topbar">
   <div class="topbar-inner">
-    <div class="title">牌局记账 v4 <span style="opacity:.6;font-size:12px;">（localStorage 优先）</span></div>
+    <div class="title">牌局记账 v3.4 <span style="opacity:.6;font-size:12px;">（localStorage）</span></div>
+
     <div class="tabs">
       <div class="tabbtn active" id="tabHomeBtn">主页</div>
       <div class="tabbtn" id="tabEditBtn">记账</div>
       <div class="tabbtn" id="tabSettingsBtn">设置</div>
     </div>
+
     <div class="actions">
+      <button class="btn-ok" id="btnGoEditTop">去记一局</button>
       <button class="btn-ghost" id="btnOpenDetails">明细侧边栏</button>
-      <button class="btn-danger" id="btnResetAll">清空全部（多次确认）</button>
     </div>
   </div>
 </div>
@@ -174,36 +269,51 @@
             <div class="pill">累计看板</div>
             <div class="muted" id="metaInfo" style="margin-top:6px;"></div>
           </div>
-          <button class="btn-ghost" id="btnRefresh">刷新</button>
+          <div class="row">
+            <button class="btn-ghost" id="btnRefresh">刷新</button>
+            <button class="btn-ok" id="btnOpenSettle">结算分账</button>
+          </div>
         </div>
+
         <div class="sep"></div>
+
+        <!-- ① 横向条（与人名同一行） -->
         <table>
-          <thead><tr><th>玩家</th><th>累计输赢</th></tr></thead>
+          <thead><tr><th>玩家 &amp; 横向条</th></tr></thead>
           <tbody id="scoreboardBody"></tbody>
         </table>
 
         <div class="sep"></div>
-        <div class="pill">汇总图表（趋势）</div>
-        <div class="muted" style="margin:8px 0;">
-          每局结束后的累计金额变化（底部图表持续展示）。
+
+        <!-- 折线图（保持） -->
+        <div class="chartWrap">
+          <div class="pill">累计走势折线图</div>
+          <div style="height:8px;"></div>
+          <canvas id="lineChart" class="chartCanvas"></canvas>
+          <div class="chartHint">
+            折线图：X=局数（从第1局开始），Y=累计输赢金额。
+          </div>
         </div>
-        <canvas id="trendChart" class="home-chart"></canvas>
+
+        <div class="sep"></div>
+        <div class="muted">
+          说明：累计为正=赢；累计为负=输。横向条：正数绿色从左起，负数红色从右起。
+        </div>
       </div>
 
       <div class="card">
         <div class="pill">快捷操作</div>
         <div class="sep"></div>
         <div class="row">
-          <button class="btn-ok" id="btnGoEdit">去记一局</button>
           <button class="btn-ghost" id="btnGoSettings">去设置</button>
+          <button class="btn-danger" id="btnResetAll">清空全部（多次确认）</button>
         </div>
         <div class="sep"></div>
-        <div class="pill">本版本规则</div>
+        <div class="pill">规则提示</div>
         <div class="muted" style="margin-top:8px;">
-          - 胜利者无需输入金额：系统自动把输家金额相加，作为胜利者赢额。<br/>
-          - 输家输入为“绝对值”，系统会自动加负号。<br/>
-          - 保存前弹窗展示本局最终带符号金额，确认后写入存储。<br/>
-          - 存储优先 localStorage（更适合 iOS 长期使用）。
+          - 选择胜利者后：胜者为正，其余为负（你输入的是绝对值）。<br/>
+          - 保存会弹确认弹窗（已适配 iPad 2021）。<br/>
+          - 每局合计必须为 0 才能保存（胜者赢的钱=其他人输的钱之和）。
         </div>
       </div>
     </div>
@@ -214,9 +324,9 @@
     <div class="card">
       <div class="flex-between">
         <div>
-          <div class="pill">记一局（胜者自动计算）</div>
+          <div class="pill">记一局（自动正负）</div>
           <div class="muted" style="margin-top:6px;">
-            输家金额支持：手动输入、快捷 1/2/3/6、下拉 1~6（iOS 原生滚轮）。
+            金额支持：手动输入、快捷 1/2/3/6（仅正数）。当非胜利者都填完，会自动算出胜利者金额。
           </div>
         </div>
         <div class="row">
@@ -236,6 +346,9 @@
           <label>胜利者</label><br/>
           <select id="winnerSelect"></select>
         </div>
+
+        <!-- 保持原功能：按钮仍在（但现在会自动算） -->
+        <button class="btn-ghost" id="btnAutoFillWinner">自动让胜者 = 其余合计</button>
       </div>
 
       <div id="amountInputsBox" class="row" style="margin-top:12px;"></div>
@@ -244,7 +357,7 @@
       <div class="sep"></div>
       <div class="row">
         <button class="btn-ok" id="btnRequestSave">保存（先确认）</button>
-        <span class="muted" id="storageHint"></span>
+        <span class="muted">保存会写入 localStorage</span>
       </div>
     </div>
   </div>
@@ -254,7 +367,7 @@
     <div class="card">
       <div class="pill">基础设置</div>
       <div class="muted" style="margin-top:6px;">
-        默认姓名可选：彬、芹、燕、令；也支持自定义。
+        默认姓名支持选择：陈彬、黄晓芹、黄晓燕、谢绵令；也支持自定义输入。
       </div>
 
       <div class="sep"></div>
@@ -265,6 +378,7 @@
           <select id="playerCount">
             <option value="4">4 人</option>
             <option value="3">3 人</option>
+            <option value="2">2 人</option>
           </select>
         </div>
         <div class="muted">切换人数后，下面只显示对应人数的姓名配置。</div>
@@ -277,6 +391,11 @@
       <div class="row" style="margin-top:10px;">
         <button id="btnSaveSettings">保存设置</button>
       </div>
+
+      <div class="sep"></div>
+      <div class="muted">
+        提醒：切换人数后历史局数据仍保留，但展示/计算按当前人数对应位置取值。
+      </div>
     </div>
   </div>
 </div>
@@ -286,7 +405,7 @@
 <div class="drawer" id="drawer">
   <div class="drawer-head">
     <div>
-      <div style="font-weight:900">局数明细</div>
+      <div style="font-weight:1000">局数明细</div>
       <div class="muted small" id="drawerMeta"></div>
     </div>
     <div class="row">
@@ -301,19 +420,49 @@
   </div>
 </div>
 
-<!-- 保存确认弹窗 -->
-<div class="modal-mask" id="confirmMask">
+<!-- 无数据引导弹窗（保持） -->
+<div class="modal-mask" id="emptyMask" aria-modal="true" role="dialog">
   <div class="modal">
     <div class="modal-head">
-      <div style="font-weight:900">确认保存本局？</div>
+      <div class="bigTitle">还没有数据，先去设置一下吧</div>
+      <button class="btn-ghost" id="btnCloseEmpty">关闭</button>
+    </div>
+    <div class="modal-body">
+      <div class="muted">
+        当前没有任何牌局记录。建议先完成「人数/玩家姓名」基础设置，再开始记账。
+      </div>
+
+      <div class="tipBox">
+        <div style="font-weight:900;">你可以这样做：</div>
+        <div class="muted" style="margin-top:8px; line-height:1.7;">
+          1）点击下面「去设置」配置人数（2/3/4）和玩家姓名；<br/>
+          2）回到「记账」选择胜利者，输入金额（手动或快捷按钮）；<br/>
+          3）非胜利者都填完后，系统会自动算出胜利者金额，再保存。
+        </div>
+      </div>
+
+      <div class="sep"></div>
+      <div class="row">
+        <button class="btn-ok" id="btnGoSettingsFromEmpty">去设置</button>
+        <button class="btn-ghost" id="btnGoEditFromEmpty">直接去记账</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 保存确认弹窗（保持 + iPad适配） -->
+<div class="modal-mask" id="confirmMask" aria-modal="true" role="dialog">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="bigTitle">确认保存本局？</div>
       <button class="btn-ghost" id="btnCloseConfirm">关闭</button>
     </div>
     <div class="modal-body">
-      <div class="muted">本局最终金额（胜者自动计算）：</div>
+      <div class="muted">以下为本局最终金额（已按胜利者自动加/减号）：</div>
       <div class="sep"></div>
       <div id="confirmList"></div>
       <div class="sep"></div>
-      <div class="muted" id="confirmSum"></div>
+      <div id="confirmSum" class="muted"></div>
       <div class="sep"></div>
       <div class="row">
         <button class="btn-ok" id="btnConfirmSave">确认保存</button>
@@ -323,98 +472,73 @@
   </div>
 </div>
 
+<!-- 结算分账弹窗（保持） -->
+<div class="modal-mask" id="settleMask" aria-modal="true" role="dialog">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="bigTitle">结算分账（转账建议）</div>
+      <button class="btn-ghost" id="btnCloseSettle">关闭</button>
+    </div>
+    <div class="modal-body">
+      <div class="muted">
+        规则：累计为负的人需要付钱；累计为正的人收钱。<br/>
+        优先撮合：<b>陈彬↔黄晓芹</b>，其次 <b>谢绵令↔黄晓燕</b>，剩余再通用撮合。
+      </div>
+      <div class="sep"></div>
+      <div id="settleList"></div>
+      <div class="sep"></div>
+      <div class="row">
+        <button class="btn-ghost" id="btnCopySettle">复制转账文本</button>
+      </div>
+      <div class="muted" style="margin-top:10px;">
+        注：若有人累计为 0，则无需转账。
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 (function(){
-  const KEY = "POKER_MONEY_V4";
-  const COOKIE_FALLBACK_KEY = "POKER_MONEY_V4_COOKIE";
-  const PRESET_NAMES = ["彬","芹","燕","令"];
+  const STORE_KEY = "POKER_MONEY_V3_4_LS";
+  const PRESET_NAMES = ["陈彬","黄晓芹","黄晓燕","谢绵令"];
 
-  // ---------- Storage Adapter (localStorage 优先，Cookie 兜底) ----------
-  function cookieSet(name, value, days){
-    const d = new Date();
-    d.setTime(d.getTime() + (days||365)*24*60*60*1000);
-    document.cookie = name + "=" + encodeURIComponent(value) + ";expires=" + d.toUTCString() + ";path=/";
-  }
-  function cookieGet(name){
-    const parts = document.cookie.split(";").map(s=>s.trim());
-    for(const p of parts){
-      if(p.startsWith(name + "=")) return decodeURIComponent(p.substring(name.length+1));
-    }
-    return "";
-  }
-  function cookieDel(name){
-    document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
-  }
-
-  function lsAvailable(){
+  // ---------- localStorage ----------
+  function loadState(){
+    const raw = localStorage.getItem(STORE_KEY);
+    if(!raw) return defaultState();
     try{
-      const t="__t__";
-      localStorage.setItem(t,"1");
-      localStorage.removeItem(t);
-      return true;
-    }catch(e){ return false; }
-  }
-
-  const storage = {
-    type: lsAvailable() ? "localStorage" : "cookie",
-    load(){
-      const raw = (this.type==="localStorage") ? localStorage.getItem(KEY) : cookieGet(COOKIE_FALLBACK_KEY);
-      if(raw) return raw;
-
-      // 兼容：如果 cookie 里有旧数据而 localStorage 没有，尝试迁移
-      if(this.type==="localStorage"){
-        const old = cookieGet(COOKIE_FALLBACK_KEY);
-        if(old){
-          localStorage.setItem(KEY, old);
-          return old;
-        }
-      }
-      return "";
-    },
-    save(raw){
-      if(this.type==="localStorage"){
-        localStorage.setItem(KEY, raw);
-      }else{
-        cookieSet(COOKIE_FALLBACK_KEY, raw, 365);
-      }
-    },
-    clear(){
-      if(this.type==="localStorage"){
-        localStorage.removeItem(KEY);
-      }
-      cookieDel(COOKIE_FALLBACK_KEY);
+      const obj = JSON.parse(raw);
+      if(!obj || !Array.isArray(obj.players) || !Array.isArray(obj.rounds)) return defaultState();
+      if(![2,3,4].includes(obj.playerCount)) obj.playerCount = obj.players.length || 4;
+      if(!obj.meta) obj.meta = {};
+      return obj;
+    }catch(e){
+      return defaultState();
     }
-  };
+  }
+  function saveState(){
+    localStorage.setItem(STORE_KEY, JSON.stringify(state));
+  }
+  function clearStorage(){
+    localStorage.removeItem(STORE_KEY);
+  }
 
   // ---------- State ----------
   function defaultState(){
     return {
       playerCount: 4,
-      players: ["彬","芹","燕","令"],
-      rounds: [] // {id, ts, winnerIndex, amounts:[signed]}
+      players: ["陈彬","黄晓芹","黄晓燕","谢绵令"],
+      rounds: [],
+      meta: { emptyGuideShownOnce: false }
     };
-  }
-  function loadState(){
-    const raw = storage.load();
-    if(!raw) return defaultState();
-    try{
-      const obj = JSON.parse(raw);
-      if(!obj || !Array.isArray(obj.players) || !Array.isArray(obj.rounds)) return defaultState();
-      if(obj.playerCount !== 3 && obj.playerCount !== 4) obj.playerCount = obj.players.length || 4;
-      return obj;
-    }catch(e){ return defaultState(); }
-  }
-  function saveState(){
-    storage.save(JSON.stringify(state));
   }
 
   let state = loadState();
-  let pendingSigned = null;
-  let pendingWinner = null;
 
   // ---------- DOM ----------
   const $ = (id)=>document.getElementById(id);
 
+  // Tabs
   const tabHomeBtn = $("tabHomeBtn");
   const tabEditBtn = $("tabEditBtn");
   const tabSettingsBtn = $("tabSettingsBtn");
@@ -422,36 +546,50 @@
   const tabEdit = $("tabEdit");
   const tabSettings = $("tabSettings");
 
+  // Top actions
+  const btnGoEditTop = $("btnGoEditTop");
+  const btnOpenDetails = $("btnOpenDetails");
+
+  // Home
   const metaInfo = $("metaInfo");
   const scoreboardBody = $("scoreboardBody");
-  const trendChart = $("trendChart");
-
-  const btnGoEdit = $("btnGoEdit");
   const btnGoSettings = $("btnGoSettings");
+  const btnResetAll = $("btnResetAll");
   const btnRefresh = $("btnRefresh");
+  const btnOpenSettle = $("btnOpenSettle");
 
+  // Line chart
+  const lineChart = $("lineChart");
+
+  // Settings
   const playerCountEl = $("playerCount");
   const playerNamesBox = $("playerNamesBox");
   const btnSaveSettings = $("btnSaveSettings");
 
+  // Edit
   const playerCountReadOnly = $("playerCountReadOnly");
   const winnerSelect = $("winnerSelect");
   const amountInputsBox = $("amountInputsBox");
   const sumMsg = $("sumMsg");
   const btnClearInputs = $("btnClearInputs");
   const btnRequestSave = $("btnRequestSave");
-  const storageHint = $("storageHint");
+  const btnAutoFillWinner = $("btnAutoFillWinner");
 
+  // Drawer
   const drawer = $("drawer");
   const drawerMask = $("drawerMask");
-  const btnOpenDetails = $("btnOpenDetails");
   const btnCloseDetails = $("btnCloseDetails");
   const roundsBox = $("roundsBox");
   const drawerMeta = $("drawerMeta");
   const btnDeleteLast = $("btnDeleteLast");
 
-  const btnResetAll = $("btnResetAll");
+  // Empty modal
+  const emptyMask = $("emptyMask");
+  const btnCloseEmpty = $("btnCloseEmpty");
+  const btnGoSettingsFromEmpty = $("btnGoSettingsFromEmpty");
+  const btnGoEditFromEmpty = $("btnGoEditFromEmpty");
 
+  // Confirm modal
   const confirmMask = $("confirmMask");
   const btnCloseConfirm = $("btnCloseConfirm");
   const btnCancelSave = $("btnCancelSave");
@@ -459,12 +597,22 @@
   const confirmList = $("confirmList");
   const confirmSum = $("confirmSum");
 
+  // Settle modal
+  const settleMask = $("settleMask");
+  const btnCloseSettle = $("btnCloseSettle");
+  const settleList = $("settleList");
+  const btnCopySettle = $("btnCopySettle");
+
+  // pending for confirm
+  let pendingSigned = null;
+  let pendingWinner = null;
+
   function escapeHtml(str){
     return String(str).replace(/[&<>"']/g, s=>({
       "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
     }[s]));
   }
-  function showMsg(type, text){
+  function showSumMsg(type, text){
     sumMsg.className = "msg " + (type||"");
     sumMsg.textContent = text || "";
   }
@@ -479,10 +627,44 @@
     tabHomeBtn.classList.toggle("active", isHome);
     tabEditBtn.classList.toggle("active", isEdit);
     tabSettingsBtn.classList.toggle("active", isSettings);
-    if(isHome) drawTrendChart();
+
+    if(isHome){
+      requestAnimationFrame(drawLineChart);
+    }
   }
 
-  // ---------- Core compute ----------
+  // ---------- Empty guide modal (保持) ----------
+  function openEmptyModal(){ emptyMask.style.display = "flex"; }
+  function closeEmptyModal(){ emptyMask.style.display = "none"; }
+
+  function maybeAutoShowEmptyGuide(reason){
+    const hasRounds = (state.rounds?.length || 0) > 0;
+    if(hasRounds){
+      closeEmptyModal();
+      return;
+    }
+    if(reason === "reset"){
+      state.meta.emptyGuideShownOnce = false;
+      saveState();
+      openEmptyModal();
+      return;
+    }
+    if(!state.meta.emptyGuideShownOnce){
+      state.meta.emptyGuideShownOnce = true;
+      saveState();
+      openEmptyModal();
+    }
+  }
+
+  // ---------- Compute ----------
+  function normalizePlayers(){
+    if(!Array.isArray(state.players)) state.players = PRESET_NAMES.slice();
+    state.players = state.players.slice(0, state.playerCount);
+    while(state.players.length < state.playerCount){
+      state.players.push(PRESET_NAMES[state.players.length] || ("玩家"+(state.players.length+1)));
+    }
+  }
+
   function computeTotals(){
     const n = state.playerCount;
     const totals = new Array(n).fill(0);
@@ -493,112 +675,214 @@
     return totals;
   }
 
-  // 金额输入：输家输入绝对值；胜者自动=输家之和
-  function buildSelect1to6(){
-    return `
-      <option value="">下拉选</option>
-      ${[1,2,3,4,5,6].map(v=>`<option value="${v}">${v}</option>`).join("")}
-    `;
+  function computeCumulativeSeries(){
+    const n = state.playerCount;
+    const rounds = [...(state.rounds||[])].sort((a,b)=>a.ts-b.ts);
+    const series = Array.from({length:n}, ()=>[]);
+    const running = new Array(n).fill(0);
+    for(const r of rounds){
+      for(let i=0;i<n;i++){
+        running[i] += Number((r.amounts||[])[i]||0);
+      }
+      for(let i=0;i<n;i++){
+        series[i].push(running[i]);
+      }
+    }
+    return { rounds, series };
   }
+
+  // ---------- Amount UI helpers (③ 去掉下拉，仅正数快捷) ----------
   function quickChips(i){
-    const vals = [1,2,3,6];
+    const posVals = [1,2,3,6];
     return `
       <div class="quickbar">
-        ${vals.map(v=>`<div class="chip" data-idx="${i}" data-v="${v}">${v}</div>`).join("")}
+        ${posVals.map(v=>`<div class="chip" data-idx="${i}" data-v="${v}">${v}</div>`).join("")}
         <div class="chip" data-idx="${i}" data-v="0">0</div>
       </div>
     `;
   }
 
-  function getLoserAbs(i){
+  function getAbsValue(i){
     const inp = $("amtInp_"+i);
-    const sel = $("amtSel_"+i);
     let v = "";
     if(inp && inp.value !== "") v = inp.value;
-    else if(sel && sel.value !== "") v = sel.value;
-    if(v === "") return 0;
+    if(v === "") return null;
     const num = Math.abs(Number(v));
-    return Number.isFinite(num) ? num : 0;
-  }
-  function setLoserAbs(i, val){
-    const inp = $("amtInp_"+i);
-    const sel = $("amtSel_"+i);
-    if(inp) inp.value = String(val);
-    if(sel) sel.value = "";
-    recalcPreview();
+    if(!Number.isFinite(num)) return null;
+    return num;
   }
 
-  function recalcPreview(){
+  function setAbsValue(i, val, silent){
+    const inp = $("amtInp_"+i);
+    const abs = Math.abs(Number(val||0));
+    if(inp) inp.value = String(abs);
+    if(!silent) validateAndPreview(true);
+  }
+
+  // 自动计算胜利者：当非胜利者都填完 -> winner = sum(others)
+  function maybeAutoCalcWinner(){
+    const n = state.playerCount;
+    const win = Number(winnerSelect.value);
+    if(win < 0 || win >= n) return;
+
+    let allLosersFilled = true;
+    let sumLosers = 0;
+    for(let i=0;i<n;i++){
+      if(i===win) continue;
+      const abs = getAbsValue(i);
+      if(abs === null){
+        allLosersFilled = false;
+      }else{
+        sumLosers += abs;
+      }
+    }
+    if(allLosersFilled){
+      // 自动回填胜利者（不触发递归校验）
+      setAbsValue(win, sumLosers, true);
+    }
+  }
+
+  function validateAndPreview(autoCalc){
     const n = state.playerCount;
     const win = Number(winnerSelect.value);
     if(win < 0 || win >= n){
-      // 清空胜者只读显示
-      for(let i=0;i<n;i++){
-        const w = $("winnerTag_"+i); if(w) w.innerHTML = "";
-        const ro = $("amtRO_"+i); if(ro) ro.value = "";
-        const row = $("rowHint_"+i); if(row) row.textContent = "";
-      }
-      showMsg("warn","请选择胜利者，然后填写输家金额（胜者自动计算）。");
-      return {ok:false};
+      showSumMsg("warn","请选择胜利者。");
+      return { ok:false };
     }
 
-    // 胜者标签
-    for(let i=0;i<n;i++){
-      const tag = $("winnerTag_"+i);
-      if(tag) tag.innerHTML = (i===win) ? `<span class="badgeWinner">胜利者（自动）</span>` : "";
-    }
+    if(autoCalc) maybeAutoCalcWinner();
 
-    // 计算输家总额
-    let loserSum = 0;
-    for(let i=0;i<n;i++){
-      if(i===win) continue;
-      loserSum += getLoserAbs(i);
-    }
-
-    // signed amounts
     const signed = new Array(n).fill(0);
+    let filled = 0;
     for(let i=0;i<n;i++){
-      if(i===win) signed[i] = +loserSum;
-      else signed[i] = -getLoserAbs(i);
+      const abs = getAbsValue(i);
+      if(abs === null){
+        signed[i] = 0;
+        continue;
+      }
+      filled++;
+      signed[i] = (i === win) ? abs : -abs;
     }
 
-    // 更新胜者只读显示
-    const ro = $("amtRO_"+win);
-    if(ro) ro.value = String(loserSum);
-
-    // 给每行提示本局最终带符号
-    for(let i=0;i<n;i++){
-      const hint = $("rowHint_"+i);
-      if(!hint) continue;
-      const v = signed[i];
-      hint.textContent = `本局：${v>=0?"+":""}${v}`;
-      hint.className = "muted " + (v>=0 ? "pos":"neg");
+    if(filled === 0){
+      showSumMsg("warn","请填写金额（手动/快捷均可）。");
+      return { ok:false };
     }
 
     const sum = signed.reduce((a,b)=>a+b,0);
-    // 理论上总是0（胜者=输家和），这里仍提示
     if(Math.abs(sum) < 1e-9){
-      showMsg("ok",`胜者自动计算完成：胜者赢 ${loserSum}，合计为 0，可保存（会弹确认）。`);
-      return {ok:true, signed, winner:win, sum};
+      showSumMsg("ok","合计为 0，可以保存（会弹确认）。");
+      return { ok:true, signed, sum };
     }else{
-      showMsg("bad",`合计异常：${sum}（请检查输入）。`);
-      return {ok:false, signed, winner:win, sum};
+      showSumMsg("bad",`合计为 ${sum}（必须为 0 才能保存）。`);
+      return { ok:false, signed, sum };
     }
   }
 
-  // ---------- UI rebuild ----------
+  function autoFillWinner(){
+    const n = state.playerCount;
+    const win = Number(winnerSelect.value);
+    if(win < 0 || win >= n){
+      alert("请先选择胜利者。");
+      return;
+    }
+    let loseSum = 0;
+    for(let i=0;i<n;i++){
+      if(i===win) continue;
+      const abs = getAbsValue(i);
+      loseSum += Number(abs||0);
+    }
+    setAbsValue(win, loseSum);
+    validateAndPreview(false);
+  }
+
+  // ---------- Confirm save modal ----------
+  function openConfirmModal(signed, sum){
+    confirmList.innerHTML = "";
+    for(let i=0;i<state.playerCount;i++){
+      const v = signed[i];
+      const item = document.createElement("div");
+      item.className = "list-item";
+      item.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+          <div style="font-weight:1000;">${escapeHtml(state.players[i]||("玩家"+(i+1)))}</div>
+          <div class="${v>=0?"pos":"neg"}" style="font-size:18px;font-weight:1000;">${v>=0?"+":""}${v}</div>
+        </div>
+      `;
+      confirmList.appendChild(item);
+    }
+    confirmSum.innerHTML = `本局合计：<b class="${Math.abs(sum)<1e-9?'pos':'neg'}">${sum}</b>（必须为 0）`;
+    confirmMask.style.display = "flex";
+  }
+  function closeConfirmModal(){ confirmMask.style.display = "none"; }
+
+  function requestSave(){
+    const res = validateAndPreview(true);
+    if(!res.ok) return;
+    pendingSigned = res.signed;
+    pendingWinner = Number(winnerSelect.value);
+    openConfirmModal(res.signed, res.sum);
+  }
+
+  function confirmSave(){
+    if(!pendingSigned) return;
+
+    state.rounds.push({
+      id: "R" + Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+      ts: Date.now(),
+      winnerIndex: pendingWinner,
+      amounts: pendingSigned.slice()
+    });
+
+    saveState();
+    closeEmptyModal();
+
+    pendingSigned = null;
+    pendingWinner = null;
+    closeConfirmModal();
+
+    rebuildHome();
+    rebuildDrawer();
+    clearInputs();
+
+    requestAnimationFrame(drawLineChart);
+    alert("已保存本局。");
+  }
+
+  // ---------- UI Builders ----------
+  // ① 横向条：正数左起绿色；负数右起红色
   function rebuildHome(){
     const totals = computeTotals();
     scoreboardBody.innerHTML = "";
+
+    const maxAbs = Math.max(1, ...totals.map(v=>Math.abs(Number(v||0))));
+
     for(let i=0;i<state.playerCount;i++){
-      const val = totals[i];
+      const name = state.players[i] || ("玩家"+(i+1));
+      const val = Number(totals[i]||0);
+      const abs = Math.abs(val);
+      const pct = Math.min(100, (abs / maxAbs) * 100);
+
+      // 正：左起；负：右起
+      const fillStyle = val >= 0
+        ? `left:0; width:${pct}%; background:rgba(37,194,110,.70);`
+        : `right:0; width:${pct}%; background:rgba(255,92,108,.70);`;
+
       const tr = document.createElement("tr");
       tr.innerHTML = `
-        <td>${escapeHtml(state.players[i]||("玩家"+(i+1)))}</td>
-        <td class="${val>=0?"pos":"neg"}">${val>=0?"+":""}${val}</td>
+        <td>
+          <div class="scoreRow">
+            <div class="scoreName">${escapeHtml(name)}</div>
+            <div class="scoreBarWrap">
+              <div class="scoreBarFill" style="${fillStyle}"></div>
+            </div>
+            <div class="scoreAmt ${val>=0?'pos':'neg'}">${val>=0?"+":""}${val}</div>
+          </div>
+        </td>
       `;
       scoreboardBody.appendChild(tr);
     }
+
     metaInfo.textContent = `人数：${state.playerCount}；局数：${state.rounds.length}`;
   }
 
@@ -620,7 +904,8 @@
             ${PRESET_NAMES.map(nm=>`<option value="${escapeHtml(nm)}"${nm===current?" selected":""}>${escapeHtml(nm)}</option>`).join("")}
             <option value="__custom__"${isPreset ? "" : " selected"}>自定义</option>
           </select>
-          <input type="text" id="nameCustom_${i}" placeholder="自定义姓名" value="${isPreset ? "" : escapeHtml(current)}" ${isPreset ? "disabled":""}/>
+          <input type="text" id="nameCustom_${i}" placeholder="自定义姓名"
+                 value="${isPreset ? "" : escapeHtml(current)}" ${isPreset ? "disabled":""}/>
         </div>
         <div class="muted">选择默认姓名或切到“自定义”输入</div>
       `;
@@ -642,11 +927,10 @@
     }
   }
 
+  // ③ 记账 Tab：取消下拉；快捷仅正数；非胜利者填完自动算胜利者
   function rebuildEdit(){
-    storageHint.textContent = `当前存储：${storage.type}（iOS 推荐 localStorage）`;
     playerCountReadOnly.innerHTML = `<option>${state.playerCount} 人</option>`;
 
-    // winner select
     winnerSelect.innerHTML = `<option value="-1">请选择胜利者</option>`;
     for(let i=0;i<state.playerCount;i++){
       const opt = document.createElement("option");
@@ -655,10 +939,8 @@
       winnerSelect.appendChild(opt);
     }
 
-    // amount inputs (输家可输入；胜者只读)
     amountInputsBox.innerHTML = "";
     const n = state.playerCount;
-    const selOpt = buildSelect1to6();
 
     for(let i=0;i<n;i++){
       const name = state.players[i] || ("玩家"+(i+1));
@@ -666,66 +948,40 @@
       box.className = "amt-box";
       box.innerHTML = `
         <label>${escapeHtml(name)} <span id="winnerTag_${i}"></span></label>
-        <div class="amt-line" id="line_${i}">
-          <input type="number" id="amtInp_${i}" inputmode="numeric" min="0" step="1" placeholder="手动输入(输家)" />
-          <select id="amtSel_${i}">${selOpt}</select>
-          <input type="number" id="amtRO_${i}" readonly placeholder="胜者自动" style="display:none;width:140px"/>
+        <div class="amt-line">
+          <input type="number" id="amtInp_${i}" inputmode="numeric" min="0" step="1" placeholder="输入金额（正数）" />
         </div>
         ${quickChips(i)}
-        <div id="rowHint_${i}" class="muted"></div>
+        <div class="muted">输入绝对值；系统按胜利者自动判断正负。非胜利者填完会自动计算胜利者。</div>
       `;
       amountInputsBox.appendChild(box);
     }
 
-    // chips events
     amountInputsBox.querySelectorAll(".chip").forEach(chip=>{
       chip.addEventListener("click", ()=>{
         const idx = Number(chip.getAttribute("data-idx"));
         const v = Number(chip.getAttribute("data-v"));
-        // 若当前 idx 是胜者，不允许手改（胜者自动）
-        if(Number(winnerSelect.value) === idx) return;
-        setLoserAbs(idx, v);
+        setAbsValue(idx, v);
       });
     });
 
-    // input/select events
     for(let i=0;i<n;i++){
       $("amtInp_"+i).addEventListener("input", ()=>{
-        if(Number(winnerSelect.value) === i) return;
-        $("amtSel_"+i).value = "";
-        recalcPreview();
-      });
-      $("amtSel_"+i).addEventListener("change", ()=>{
-        if(Number(winnerSelect.value) === i) return;
-        if($("amtSel_"+i).value !== "") $("amtInp_"+i).value = "";
-        recalcPreview();
+        validateAndPreview(true);
       });
     }
 
     winnerSelect.addEventListener("change", ()=>{
-      // 切换胜者：把胜者行切到只读，其余行切到可输入
+      for(let i=0;i<n;i++) $("winnerTag_"+i).innerHTML = "";
       const win = Number(winnerSelect.value);
-      for(let i=0;i<n;i++){
-        const inp = $("amtInp_"+i);
-        const sel = $("amtSel_"+i);
-        const ro = $("amtRO_"+i);
-        if(i === win){
-          // 隐藏输家输入，显示只读
-          inp.value = ""; sel.value = "";
-          inp.style.display = "none";
-          sel.style.display = "none";
-          ro.style.display = "";
-        }else{
-          inp.style.display = "";
-          sel.style.display = "";
-          ro.style.display = "none";
-          ro.value = "";
-        }
+      if(win >= 0 && win < n){
+        $("winnerTag_"+win).innerHTML = `<span class="badgeWinner">胜利者</span>`;
       }
-      recalcPreview();
+      // 切换胜利者后也尝试自动计算
+      validateAndPreview(true);
     });
 
-    showMsg("warn","请选择胜利者，然后填写输家金额（胜者自动计算）。");
+    showSumMsg("warn","请选择胜利者并填写金额。");
   }
 
   function rebuildDrawer(){
@@ -735,6 +991,7 @@
       roundsBox.innerHTML = `<div class="muted">暂无记录。</div>`;
       return;
     }
+
     const n = state.playerCount;
     const rounds = [...state.rounds].sort((a,b)=>b.ts-a.ts);
     for(const r of rounds){
@@ -747,17 +1004,17 @@
       const detailRows = (r.amounts||[]).slice(0,n).map((v,i)=>{
         const num = Number(v||0);
         return `<tr><td>${escapeHtml(state.players[i]||("玩家"+(i+1)))}</td>
-                <td class="${num>=0?"pos":"neg"}">${num>=0?"+":""}${num}</td></tr>`;
+                <td class="${num>=0?"pos":"neg"}" style="font-weight:900;font-size:16px;">${num>=0?"+":""}${num}</td></tr>`;
       }).join("");
 
       const box = document.createElement("details");
       box.innerHTML = `
         <summary class="flex-between">
           <div>
-            <div class="${sumOk?"pos":"neg"}" style="font-weight:900">
+            <div class="${sumOk?"pos":"neg"}" style="font-weight:1000">
               第 ${idx+1} 局 · ${tsStr} · 合计 ${sumOk?"0":"≠0"}
             </div>
-            <div class="muted small">胜者：${escapeHtml(state.players[r.winnerIndex]||"")}</div>
+            <div class="muted small">ID：${r.id}</div>
           </div>
           <div class="row">
             <button class="btn-danger" data-del="${r.id}" type="button">删除</button>
@@ -782,87 +1039,28 @@
     });
   }
 
-  function rebuildAll(){
-    // 修正 players 长度
-    if(!Array.isArray(state.players) || state.players.length===0) state.players = PRESET_NAMES.slice();
-    if(state.playerCount !== 3 && state.playerCount !== 4) state.playerCount = 4;
-    state.players = state.players.slice(0, state.playerCount);
-    while(state.players.length < state.playerCount){
-      state.players.push(PRESET_NAMES[state.players.length] || ("玩家"+(state.players.length+1)));
-    }
-
+  function rebuildAll(reasonForEmptyGuide){
+    normalizePlayers();
     rebuildHome();
     rebuildSettings();
     rebuildEdit();
     rebuildDrawer();
-    drawTrendChart();
-  }
-
-  // ---------- Confirm Save ----------
-  function openConfirmModal(signed, sum){
-    confirmList.innerHTML = "";
-    for(let i=0;i<state.playerCount;i++){
-      const v = signed[i];
-      const item = document.createElement("div");
-      item.className = "list-item";
-      item.innerHTML = `
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
-          <div style="font-weight:900;">${escapeHtml(state.players[i]||("玩家"+(i+1)))}</div>
-          <div class="${v>=0?"pos":"neg"}" style="font-size:16px;">${v>=0?"+":""}${v}</div>
-        </div>
-      `;
-      confirmList.appendChild(item);
-    }
-    confirmSum.innerHTML = `本局合计：<b style="color:${Math.abs(sum)<1e-9 ? 'var(--ok)' : 'var(--bad)'}">${sum}</b>（应为 0）`;
-    confirmMask.style.display = "flex";
-  }
-  function closeConfirmModal(){ confirmMask.style.display = "none"; }
-
-  function requestSave(){
-    const res = recalcPreview();
-    if(!res.ok) return;
-    pendingSigned = res.signed;
-    pendingWinner = res.winner;
-    openConfirmModal(res.signed, res.sum);
-  }
-
-  function confirmSave(){
-    if(!pendingSigned) return;
-    state.rounds.push({
-      id: "R" + Date.now().toString(36) + Math.random().toString(36).slice(2,6),
-      ts: Date.now(),
-      winnerIndex: pendingWinner,
-      amounts: pendingSigned.slice()
-    });
-    saveState();
-    pendingSigned = null;
-    pendingWinner = null;
-    closeConfirmModal();
-    rebuildHome();
-    rebuildDrawer();
-    drawTrendChart();
-    clearInputs();
-    alert("已保存本局。");
+    requestAnimationFrame(drawLineChart);
+    if(reasonForEmptyGuide) maybeAutoShowEmptyGuide(reasonForEmptyGuide);
   }
 
   function clearInputs(){
     winnerSelect.value = "-1";
     for(let i=0;i<state.playerCount;i++){
       const inp = $("amtInp_"+i);
-      const sel = $("amtSel_"+i);
-      const ro = $("amtRO_"+i);
+      if(inp) inp.value = "";
       const tag = $("winnerTag_"+i);
-      const hint = $("rowHint_"+i);
-      if(inp){ inp.value=""; inp.style.display=""; }
-      if(sel){ sel.value=""; sel.style.display=""; }
-      if(ro){ ro.value=""; ro.style.display="none"; }
-      if(tag) tag.innerHTML="";
-      if(hint) hint.textContent="";
+      if(tag) tag.innerHTML = "";
     }
-    showMsg("warn","请选择胜利者，然后填写输家金额（胜者自动计算）。");
+    showSumMsg("warn","请选择胜利者并填写金额。");
   }
 
-  // ---------- Settings Save ----------
+  // ---------- Settings save ----------
   function saveSettings(){
     const n = Number(playerCountEl.value);
     state.playerCount = n;
@@ -882,19 +1080,23 @@
   }
 
   // ---------- Drawer ----------
-  function openDrawer(){ drawerMask.style.display="block"; drawer.classList.add("open"); }
-  function closeDrawer(){ drawerMask.style.display="none"; drawer.classList.remove("open"); }
+  function openDrawer(){
+    drawerMask.style.display = "block";
+    drawer.classList.add("open");
+  }
+  function closeDrawer(){
+    drawerMask.style.display = "none";
+    drawer.classList.remove("open");
+  }
 
   // ---------- Delete / Reset ----------
   function deleteRound(id){
     const idx = state.rounds.findIndex(r=>r.id===id);
-    if(idx<0) return;
+    if(idx < 0) return;
     if(!confirm("确定删除该局吗？")) return;
     state.rounds.splice(idx,1);
     saveState();
-    rebuildHome();
-    rebuildDrawer();
-    drawTrendChart();
+    rebuildAll();
   }
   function deleteLast(){
     if(state.rounds.length===0) return;
@@ -902,134 +1104,232 @@
     if(!confirm(`确定删除最后一局（第 ${idx+1} 局）吗？`)) return;
     state.rounds.splice(idx,1);
     saveState();
-    rebuildHome();
-    rebuildDrawer();
-    drawTrendChart();
+    rebuildAll();
   }
   function resetAll(){
     if(!confirm("第 1 次确认：确定清空全部数据吗？")) return;
     if(!confirm("第 2 次确认：清空后不可恢复，确定吗？")) return;
     if(!confirm("第 3 次确认：最后确认，真的要清空吗？")) return;
-    storage.clear();
-    state = {
-      playerCount: 4,
-      players: ["彬","芹","燕","令"],
-      rounds: []
-    };
+
+    clearStorage();
+    state = defaultState();
     saveState();
-    rebuildAll();
+
+    rebuildAll("reset");
     clearInputs();
     alert("已清空。");
   }
 
-  // ---------- Chart ----------
-  function drawTrendChart(){
-    const canvas = trendChart;
-    const ctx = canvas.getContext("2d");
-
-    const dpr = Math.max(1, Math.floor(window.devicePixelRatio || 1));
+  // ---------- Line chart (保持) ----------
+  function resizeCanvasToDisplaySize(canvas){
     const rect = canvas.getBoundingClientRect();
-    canvas.width = Math.floor(rect.width * dpr);
-    canvas.height = Math.floor(rect.height * dpr);
-    ctx.setTransform(dpr,0,0,dpr,0,0);
+    const dpr = window.devicePixelRatio || 1;
+    const w = Math.max(1, Math.floor(rect.width * dpr));
+    const h = Math.max(1, Math.floor(rect.height * dpr));
+    if(canvas.width !== w || canvas.height !== h){
+      canvas.width = w;
+      canvas.height = h;
+      return true;
+    }
+    return false;
+  }
 
-    ctx.clearRect(0,0,rect.width,rect.height);
+  function drawLineChart(){
+    if(!lineChart) return;
+    resizeCanvasToDisplaySize(lineChart);
+    const ctx = lineChart.getContext("2d");
+    const w = lineChart.width, h = lineChart.height;
+    ctx.clearRect(0,0,w,h);
 
+    const { rounds, series } = computeCumulativeSeries();
     const n = state.playerCount;
-    const rounds = state.rounds.slice().sort((a,b)=>a.ts-b.ts);
-    const pointsCount = rounds.length + 1;
-    const series = new Array(n).fill(0).map(()=> new Array(pointsCount).fill(0));
+    const m = rounds.length;
 
-    const acc = new Array(n).fill(0);
-    for(let i=0;i<n;i++) series[i][0]=0;
-    rounds.forEach((r, idx)=>{
-      for(let i=0;i<n;i++){
-        acc[i] += Number((r.amounts||[])[i]||0);
-        series[i][idx+1] = acc[i];
-      }
-    });
+    if(m === 0){
+      ctx.fillStyle = "rgba(255,255,255,.55)";
+      ctx.font = `${Math.floor(14*(window.devicePixelRatio||1))}px -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto`;
+      ctx.fillText("暂无折线数据（先记一局）", Math.floor(w*0.08), Math.floor(h*0.55));
+      return;
+    }
 
-    let minV = 0, maxV = 0;
+    const padding = Math.floor(Math.min(w,h) * 0.10);
+    const innerW = w - padding*2;
+    const innerH = h - padding*2;
+
+    let minY = Infinity, maxY = -Infinity;
     for(let i=0;i<n;i++){
-      for(let k=0;k<pointsCount;k++){
-        minV = Math.min(minV, series[i][k]);
-        maxV = Math.max(maxV, series[i][k]);
+      for(const v of series[i]){
+        minY = Math.min(minY, v);
+        maxY = Math.max(maxY, v);
       }
     }
-    if(minV === maxV){ minV -= 1; maxV += 1; }
+    const range = Math.max(1, maxY - minY);
+    minY = minY - range*0.1;
+    maxY = maxY + range*0.1;
 
-    const padL = 44, padR = 12, padT = 12, padB = 28;
-    const W = rect.width, H = rect.height;
-    const plotW = W - padL - padR;
-    const plotH = H - padT - padB;
-
-    // grid
-    ctx.lineWidth = 1;
-    ctx.strokeStyle = "rgba(255,255,255,.08)";
-    ctx.fillStyle = "rgba(255,255,255,.35)";
-    ctx.font = "12px -apple-system,BlinkMacSystemFont,Segoe UI,Roboto";
-    for(let j=0;j<=3;j++){
-      const y = padT + plotH*(j/3);
-      ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(W-padR,y); ctx.stroke();
-      const val = maxV - (maxV-minV)*(j/3);
-      ctx.fillText(String(Math.round(val)), 10, y+4);
+    function xAt(k){
+      if(m<=1) return padding + innerW/2;
+      return padding + (k/(m-1))*innerW;
     }
-    ctx.strokeStyle = "rgba(255,255,255,.12)";
-    ctx.beginPath(); ctx.moveTo(padL,padT+plotH); ctx.lineTo(W-padR,padT+plotH); ctx.stroke();
-
-    const xOf = (k)=> padL + (pointsCount<=1?0:(plotW*(k/(pointsCount-1))));
-    const yOf = (v)=> padT + ((maxV - v)/(maxV - minV))*plotH;
-
-    function colorFor(i){
-      const hue = (i * 360 / Math.max(1,n));
-      return `hsla(${hue}, 80%, 65%, 0.9)`;
+    function yAt(v){
+      const t = (v - minY) / (maxY - minY || 1);
+      return padding + (1-t)*innerH;
     }
 
-    for(let i=0;i<n;i++){
-      ctx.strokeStyle = colorFor(i);
-      ctx.lineWidth = 2;
+    ctx.strokeStyle = "rgba(255,255,255,.10)";
+    ctx.lineWidth = Math.max(1, Math.floor((window.devicePixelRatio||1)));
+    const gridN = 4;
+    for(let g=0; g<=gridN; g++){
+      const y = padding + (g/gridN)*innerH;
       ctx.beginPath();
-      for(let k=0;k<pointsCount;k++){
-        const x=xOf(k), y=yOf(series[i][k]);
-        if(k===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+      ctx.moveTo(padding, y);
+      ctx.lineTo(padding+innerW, y);
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = "rgba(255,255,255,.55)";
+    ctx.font = `${Math.floor(11*(window.devicePixelRatio||1))}px -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto`;
+    ctx.fillText(`第1局`, padding, padding-6);
+    ctx.fillText(`第${m}局`, padding+innerW-40, padding-6);
+
+    const colors = [
+      "rgba(86,160,255,.95)",
+      "rgba(255,204,102,.95)",
+      "rgba(37,194,110,.95)",
+      "rgba(255,92,108,.95)"
+    ];
+
+    for(let i=0;i<n;i++){
+      const arr = series[i];
+      ctx.strokeStyle = colors[i % colors.length];
+      ctx.lineWidth = Math.max(2, Math.floor(2*(window.devicePixelRatio||1)));
+      ctx.beginPath();
+      for(let k=0;k<m;k++){
+        const x = xAt(k);
+        const y = yAt(arr[k]);
+        if(k===0) ctx.moveTo(x,y);
+        else ctx.lineTo(x,y);
       }
       ctx.stroke();
 
-      const lastX=xOf(pointsCount-1), lastY=yOf(series[i][pointsCount-1]);
-      ctx.fillStyle = colorFor(i);
-      ctx.beginPath(); ctx.arc(lastX,lastY,3,0,Math.PI*2); ctx.fill();
-
-      // legend
-      ctx.fillStyle = colorFor(i);
-      ctx.fillRect(W-padR-10, padT + i*18, 10, 10);
-      ctx.fillStyle = "rgba(232,238,252,.9)";
-      ctx.fillText(state.players[i]||("玩家"+(i+1)), W-padR-10-110, padT + i*18 + 10);
+      const xLast = xAt(m-1), yLast = yAt(arr[m-1]);
+      ctx.fillStyle = colors[i % colors.length];
+      ctx.beginPath();
+      ctx.arc(xLast, yLast, Math.max(3, Math.floor(3*(window.devicePixelRatio||1))), 0, Math.PI*2);
+      ctx.fill();
     }
-
-    ctx.fillStyle = "rgba(255,255,255,.45)";
-    ctx.fillText("局数 →", W-60, H-10);
   }
 
-  // ---------- Events ----------
+  // ---------- Settlement (保持) ----------
+  function openSettleModal(){
+    const totals = computeTotals();
+    const names = state.players.slice(0,state.playerCount);
+    const transfers = generateTransfersWithPriority(names, totals);
+
+    settleList.innerHTML = "";
+    if(transfers.length === 0){
+      settleList.innerHTML = `<div class="muted">当前无需转账（所有人累计均为 0）。</div>`;
+    }else{
+      transfers.forEach(t=>{
+        const item = document.createElement("div");
+        item.className = "list-item";
+        item.innerHTML = `
+          <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center;">
+            <div style="font-weight:1000;">${escapeHtml(t.from)} → ${escapeHtml(t.to)}</div>
+            <div class="mono" style="font-weight:1000;font-size:16px;">¥ ${t.amount}</div>
+          </div>
+        `;
+        settleList.appendChild(item);
+      });
+    }
+    settleMask.style.display = "flex";
+  }
+  function closeSettleModal(){ settleMask.style.display = "none"; }
+
+  function generateTransfersWithPriority(names, totals){
+    const n = names.length;
+    const payers = [];
+    const receivers = [];
+    for(let i=0;i<n;i++){
+      const v = Number(totals[i]||0);
+      if(v < 0) payers.push({i, remain: -v});
+      else if(v > 0) receivers.push({i, remain: v});
+    }
+
+    const transfers = [];
+
+    function getPayer(i){ return payers.find(p=>p.i===i && p.remain>0); }
+    function getRecv(i){ return receivers.find(r=>r.i===i && r.remain>0); }
+
+    function matchOneToOne(payerIdx, recvIdx){
+      const p = getPayer(payerIdx);
+      const r = getRecv(recvIdx);
+      if(!p || !r) return;
+      const amt = Math.min(p.remain, r.remain);
+      if(amt <= 0) return;
+      p.remain -= amt;
+      r.remain -= amt;
+      transfers.push({from: names[payerIdx], to: names[recvIdx], amount: amt});
+    }
+
+    function settlePair(aName, bName){
+      const a = names.indexOf(aName);
+      const b = names.indexOf(bName);
+      if(a<0 || b<0) return;
+      matchOneToOne(a, b);
+      matchOneToOne(b, a);
+    }
+
+    settlePair("陈彬","黄晓芹");
+    settlePair("谢绵令","黄晓燕");
+
+    payers.sort((a,b)=>b.remain-a.remain);
+    receivers.sort((a,b)=>b.remain-a.remain);
+
+    let pi = 0, ri = 0;
+    while(pi < payers.length && ri < receivers.length){
+      const p = payers[pi];
+      const r = receivers[ri];
+      if(p.remain<=0){ pi++; continue; }
+      if(r.remain<=0){ ri++; continue; }
+      const amt = Math.min(p.remain, r.remain);
+      p.remain -= amt;
+      r.remain -= amt;
+      transfers.push({from:names[p.i], to:names[r.i], amount: amt});
+    }
+
+    return transfers;
+  }
+
+  function buildSettleText(){
+    const totals = computeTotals();
+    const names = state.players.slice(0,state.playerCount);
+    const transfers = generateTransfersWithPriority(names, totals);
+    if(transfers.length===0) return "无需转账（所有人累计均为0）";
+    return transfers.map(t=>`${t.from} -> ${t.to} : ¥${t.amount}`).join("\n");
+  }
+
+  // ---------- Bind Events ----------
   tabHomeBtn.addEventListener("click", ()=>openTab("home"));
   tabEditBtn.addEventListener("click", ()=>openTab("edit"));
   tabSettingsBtn.addEventListener("click", ()=>openTab("settings"));
 
-  btnGoEdit.addEventListener("click", ()=>openTab("edit"));
+  btnGoEditTop.addEventListener("click", ()=>openTab("edit"));
   btnGoSettings.addEventListener("click", ()=>openTab("settings"));
-
-  btnRefresh.addEventListener("click", ()=>{ rebuildHome(); drawTrendChart(); });
+  btnRefresh.addEventListener("click", ()=>{
+    rebuildHome();
+    drawLineChart();
+  });
 
   btnOpenDetails.addEventListener("click", openDrawer);
   btnCloseDetails.addEventListener("click", closeDrawer);
   drawerMask.addEventListener("click", closeDrawer);
-  btnDeleteLast.addEventListener("click", deleteLast);
 
+  btnDeleteLast.addEventListener("click", deleteLast);
   btnResetAll.addEventListener("click", resetAll);
 
   btnSaveSettings.addEventListener("click", saveSettings);
   playerCountEl.addEventListener("change", ()=>{
-    // 临时预览 settings UI，不落库
     const n = Number(playerCountEl.value);
     const backup = JSON.parse(JSON.stringify(state));
     state.playerCount = n;
@@ -1043,29 +1343,45 @@
 
   btnClearInputs.addEventListener("click", clearInputs);
   btnRequestSave.addEventListener("click", requestSave);
+  btnAutoFillWinner.addEventListener("click", autoFillWinner);
 
+  // Empty modal buttons
+  btnCloseEmpty.addEventListener("click", closeEmptyModal);
+  emptyMask.addEventListener("click", (e)=>{ if(e.target === emptyMask) closeEmptyModal(); });
+  btnGoSettingsFromEmpty.addEventListener("click", ()=>{ closeEmptyModal(); openTab("settings"); });
+  btnGoEditFromEmpty.addEventListener("click", ()=>{ closeEmptyModal(); openTab("edit"); });
+
+  // Confirm modal buttons
   btnCloseConfirm.addEventListener("click", closeConfirmModal);
   btnCancelSave.addEventListener("click", closeConfirmModal);
-  confirmMask.addEventListener("click", (e)=>{ if(e.target===confirmMask) closeConfirmModal(); });
+  confirmMask.addEventListener("click", (e)=>{ if(e.target === confirmMask) closeConfirmModal(); });
   btnConfirmSave.addEventListener("click", confirmSave);
 
-  window.addEventListener("resize", ()=>{
-    clearTimeout(window.__chartT);
-    window.__chartT = setTimeout(drawTrendChart, 120);
+  // Settle modal
+  btnOpenSettle.addEventListener("click", openSettleModal);
+  btnCloseSettle.addEventListener("click", closeSettleModal);
+  settleMask.addEventListener("click", (e)=>{ if(e.target === settleMask) closeSettleModal(); });
+  btnCopySettle.addEventListener("click", async ()=>{
+    const text = buildSettleText();
+    try{
+      await navigator.clipboard.writeText(text);
+      alert("已复制。");
+    }catch(e){
+      prompt("复制失败（可能是浏览器权限限制），请手动复制：", text);
+    }
   });
 
+  window.addEventListener("resize", ()=>{ drawLineChart(); });
+
   // ---------- Init ----------
-  // 修正初始
-  if(state.playerCount !== 3 && state.playerCount !== 4) state.playerCount = 4;
-  if(!Array.isArray(state.players) || state.players.length===0) state.players = PRESET_NAMES.slice();
-  state.players = state.players.slice(0, state.playerCount);
-  while(state.players.length < state.playerCount){
-    state.players.push(PRESET_NAMES[state.players.length] || ("玩家"+(state.players.length+1)));
-  }
+  if(![2,3,4].includes(state.playerCount)) state.playerCount = 4;
+  if(!state.meta) state.meta = { emptyGuideShownOnce:false };
+  normalizePlayers();
   saveState();
-  rebuildAll();
-  clearInputs();
+
+  rebuildAll("init");
   openTab("home");
+  maybeAutoShowEmptyGuide("init");
 })();
 </script>
 
