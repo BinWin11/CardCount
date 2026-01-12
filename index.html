@@ -53,6 +53,19 @@
     .btn-ghost{background:transparent;box-shadow:none}
     .btn-danger{background:linear-gradient(180deg,#5b2230,#3a1620);border-color:rgba(255,92,108,.25)}
     .btn-ok{background:linear-gradient(180deg,#1f5a3b,#143524);border-color:rgba(37,194,110,.25)}
+    .btn-primary-large{
+      background:linear-gradient(180deg,#1f5a3b,#143524);
+      border-color:rgba(37,194,110,.35);
+      padding:14px 20px;
+      font-size:16px;
+      font-weight:900;
+      box-shadow:0 10px 24px rgba(37,194,110,.25);
+    }
+    .btn-primary-large:hover{
+      filter:brightness(1.12);
+      box-shadow:0 12px 28px rgba(37,194,110,.35);
+      transform:translateY(-1px);
+    }
 
     .wrap{max-width:1100px;margin:0 auto;padding:14px;}
     .grid{display:grid;grid-template-columns:1fr;gap:12px;margin-top:12px;}
@@ -526,7 +539,7 @@
     </div>
 
     <div class="actions">
-      <button class="btn-ok" id="btnGoEditTop">去记一局</button>
+      <button class="btn-ok" id="btnOpenSettle">结算分账</button>
       <button class="btn-ghost" id="btnOpenDetails">明细侧边栏</button>
     </div>
   </div>
@@ -544,7 +557,7 @@
           </div>
           <div class="row">
             <button class="btn-ghost" id="btnRefresh">刷新</button>
-            <button class="btn-ok" id="btnOpenSettle">结算分账</button>
+            <button class="btn-primary-large" id="btnGoEditTop">去记一局</button>
           </div>
         </div>
 
