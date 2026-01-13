@@ -445,6 +445,30 @@
       padding:10px;
     }
     .chartCanvas{width:100%;height:220px;display:block;}
+    .chartLegend{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      margin-top:8px;
+    }
+    .legend-item{
+      display:flex;
+      align-items:center;
+      gap:6px;
+      font-size:12px;
+      color:var(--muted);
+      padding:6px 8px;
+      border:1px solid var(--line);
+      border-radius:10px;
+      background:rgba(0,0,0,.12);
+    }
+    .legend-dot{
+      width:12px;
+      height:12px;
+      border-radius:50%;
+      box-shadow:0 0 0 1px rgba(0,0,0,.35);
+      flex-shrink:0;
+    }
     .chartHint{margin-top:8px;font-size:12px;color:var(--muted);line-height:1.5;}
 
     /* ✅ v3.6：iPad 弹窗强制居中（visualViewport） + 顶部布局更稳 + 颜色区分更明显 */
@@ -604,6 +628,7 @@
           <div class="pill">累计走势折线图</div>
           <div style="height:8px;"></div>
           <canvas id="lineChart" class="chartCanvas"></canvas>
+          <div id="lineLegend" class="chartLegend"></div>
           <div class="chartHint">折线图：X=局数（从第1局开始），Y=累计输赢金额。</div>
         </div>
 
@@ -810,6 +835,12 @@
 (function(){
   const STORE_KEY = "POKER_MONEY_V3_6_LS";
   const PRESET_NAMES = ["彬","芹","燕","令"];
+  const LINE_COLORS = [
+    "rgba(86,160,255,.95)",
+    "rgba(255,204,102,.95)",
+    "rgba(37,194,110,.95)",
+    "rgba(255,92,108,.95)"
+  ];
 
   // ---------- localStorage ----------
   function loadState(){
@@ -869,6 +900,7 @@
 
   // Line chart
   const lineChart = $("lineChart");
+  const lineLegend = $("lineLegend");
 
   // Settings
   const playerCountEl = $("playerCount");
@@ -1545,6 +1577,15 @@
   }
 
   // ---------- Line chart ----------
+  function renderLineLegend(names){
+    if(!lineLegend) return;
+    const items = names.map((name, i)=>{
+      const color = LINE_COLORS[i % LINE_COLORS.length];
+      return `<div class="legend-item"><span class="legend-dot" style="background:${color};"></span><span>${escapeHtml(name)}</span></div>`;
+    });
+    lineLegend.innerHTML = items.join("");
+  }
+
   function resizeCanvasToDisplaySize(canvas){
     const rect = canvas.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
@@ -1568,6 +1609,8 @@
     const { series } = computeCumulativeSeries();
     const n = state.playerCount;
     const m = (series[0]||[]).length;
+    const names = state.players.slice(0, n);
+    renderLineLegend(names);
 
     if(m === 0){
       ctx.fillStyle = "rgba(255,255,255,.55)";
@@ -1616,16 +1659,10 @@
     ctx.fillText(`第1局`, padding, padding-6);
     ctx.fillText(`第${m}局`, padding+innerW-40, padding-6);
 
-    const colors = [
-      "rgba(86,160,255,.95)",
-      "rgba(255,204,102,.95)",
-      "rgba(37,194,110,.95)",
-      "rgba(255,92,108,.95)"
-    ];
-
     for(let i=0;i<n;i++){
       const arr = series[i];
-      ctx.strokeStyle = colors[i % colors.length];
+      const color = LINE_COLORS[i % LINE_COLORS.length];
+      ctx.strokeStyle = color;
       ctx.lineWidth = Math.max(2, Math.floor(2*(window.devicePixelRatio||1)));
       ctx.beginPath();
       for(let k=0;k<m;k++){
@@ -1637,7 +1674,7 @@
       ctx.stroke();
 
       const xLast = xAt(m-1), yLast = yAt(arr[m-1]);
-      ctx.fillStyle = colors[i % colors.length];
+      ctx.fillStyle = color;
       ctx.beginPath();
       ctx.arc(xLast, yLast, Math.max(3, Math.floor(3*(window.devicePixelRatio||1))), 0, Math.PI*2);
       ctx.fill();
