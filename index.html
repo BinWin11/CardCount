@@ -1199,29 +1199,34 @@
     pendingWinner = null;
     closeConfirmModal();
 
+    // 先切换到主页
+    openTab("home");
+    
+    // 重建UI
     rebuildHome();
     rebuildDrawer();
     clearInputs();
 
     requestAnimationFrame(drawLineChart);
-	
-	openTab("home");   // 保存后跳转到看板
     
-    // 滚动到页面顶部，确保能看到所有人的金额
-    setTimeout(() => {
-      // 先滚动窗口到顶部
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      // 再确保主页内容区域可见
-      const homeTab = document.getElementById("tabHome");
-      if(homeTab){
-        homeTab.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
-      // 也滚动到顶部栏，确保能看到累计看板
+    // 滚动到页面顶部 - 使用 requestAnimationFrame 确保DOM更新完成
+    requestAnimationFrame(() => {
+      // 立即滚动到顶部（无动画，确保立即生效）
+      window.scrollTo({ top: 0, behavior: 'auto' });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      
+      // 确保顶部栏可见
       const topbar = document.querySelector(".topbar");
       if(topbar){
-        topbar.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        topbar.scrollIntoView({ behavior: 'auto', block: 'start' });
       }
-    }, 50);
+      
+      // 延迟一点再使用平滑滚动，确保位置正确
+      setTimeout(() => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }, 50);
+    });
     
   }
 
