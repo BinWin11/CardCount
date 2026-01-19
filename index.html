@@ -74,33 +74,31 @@
     /* 🆕 主页三栏布局 */
     .home-grid{
       display:grid;
-      grid-template-columns:1fr;
-      gap:12px;
+      grid-template-columns: 1fr 0.85fr;
+      gap:16px;
       margin-top:12px;
     }
-    @media (min-width:1280px){
+    @media (max-width:1024px){
       .home-grid{
-        grid-template-columns: 1.2fr 0.9fr;
-        gap:16px;
+        grid-template-columns: 1fr;
+        gap:12px;
       }
     }
     .home-left{
-      grid-column: 1 / -1;
+      grid-column: 1;
     }
     .home-middle{
       display:grid;
       grid-template-columns:1fr;
       gap:12px;
-      grid-column: 1 / -1;
+      grid-column: 2;
     }
-    @media (min-width:1280px){
+    @media (max-width:1024px){
       .home-left{
         grid-column: 1;
-        grid-row: 1;
       }
       .home-middle{
-        grid-column: 2;
-        grid-row: 1;
+        grid-column: 1;
       }
     }
 
