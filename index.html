@@ -71,6 +71,90 @@
     .grid{display:grid;grid-template-columns:1fr;gap:12px;margin-top:12px;}
     @media (min-width:900px){ .grid{grid-template-columns:1.2fr .8fr;} }
 
+    /* 🆕 主页三栏布局 */
+    .home-grid{
+      display:grid;
+      grid-template-columns:1fr;
+      gap:12px;
+      margin-top:12px;
+    }
+    @media (min-width:1280px){
+      .home-grid{
+        grid-template-columns: 1.2fr 0.9fr;
+        gap:16px;
+      }
+    }
+    .home-left{
+      grid-column: 1 / -1;
+    }
+    .home-middle{
+      display:grid;
+      grid-template-columns:1fr;
+      gap:12px;
+      grid-column: 1 / -1;
+    }
+    @media (min-width:1280px){
+      .home-left{
+        grid-column: 1;
+        grid-row: 1;
+      }
+      .home-middle{
+        grid-column: 2;
+        grid-row: 1;
+      }
+    }
+
+    /* 🆕 动画定义 */
+    @keyframes fadeInUp{
+      from{
+        opacity:0;
+        transform:translateY(20px);
+      }
+      to{
+        opacity:1;
+        transform:translateY(0);
+      }
+    }
+
+    @keyframes slideInDown{
+      from{
+        opacity:0;
+        transform:translateY(-10px);
+      }
+      to{
+        opacity:1;
+        transform:translateY(0);
+      }
+    }
+
+    @keyframes pulse{
+      0%, 100%{
+        opacity:1;
+      }
+      50%{
+        opacity:0.8;
+      }
+    }
+
+    @keyframes scaleIn{
+      from{
+        opacity:0;
+        transform:scale(0.95);
+      }
+      to{
+        opacity:1;
+        transform:scale(1);
+      }
+    }
+
+    /* 🆕 统计卡片基础样式和动画 */
+    .stat-card{
+      animation: scaleIn 0.5s ease;
+    }
+    .stat-card-animate{
+      animation: fadeInUp 0.6s ease both;
+    }
+
     .card{
       background:rgba(18,26,43,.92);
       border:1px solid var(--line);
@@ -471,6 +555,166 @@
     }
     .chartHint{margin-top:8px;font-size:12px;color:var(--muted);line-height:1.5;}
 
+    /* 🆕 上局胜者卡片 */
+    .last-winner-card{
+      border: 2px solid rgba(255, 204, 102, .5);
+      border-radius: 16px;
+      padding: 20px;
+      background: linear-gradient(135deg, rgba(255,204,102,.12), rgba(255,204,102,.04));
+      text-align: center;
+      transition: all .3s cubic-bezier(.25,.46,.45,.94);
+      animation: slideInDown 0.6s ease;
+    }
+    .last-winner-card:hover{
+      border-color: rgba(255, 204, 102, .8);
+      background: linear-gradient(135deg, rgba(255,204,102,.18), rgba(255,204,102,.08));
+      box-shadow: 0 8px 24px rgba(255,204,102,.15);
+      transform: translateY(-4px);
+    }
+    .last-winner-title{
+      font-size: 13px;
+      color: var(--muted);
+      font-weight: 900;
+      margin-bottom: 10px;
+      letter-spacing: .1px;
+      text-transform: uppercase;
+    }
+    .last-winner-name{
+      font-size: 32px;
+      font-weight: 1000;
+      margin-bottom: 16px;
+      background: linear-gradient(135deg, rgba(255,204,102,1), rgba(255,255,200,1));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .last-winner-amount{
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      margin-bottom: 12px;
+    }
+    .last-winner-amount span:first-child{
+      font-size: 12px;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+    .last-winner-round{
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    /* 🆕 连胜榜 */
+    .streak-list{
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin-top: 4px;
+    }
+    .streak-item{
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 14px;
+      background: rgba(0,0,0,.14);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      transition: all .3s cubic-bezier(.25,.46,.45,.94);
+      animation: fadeInUp 0.5s ease;
+    }
+    .streak-item:hover{
+      border-color: rgba(255, 204, 102, .5);
+      background: rgba(255, 204, 102, .08);
+      transform: translateY(-2px);
+    }
+    .streak-item.highlight{
+      border-color: rgba(255, 204, 102, .8);
+      background: linear-gradient(135deg, rgba(255,204,102,.16), rgba(255,204,102,.06));
+      box-shadow: 0 0 0 1px rgba(255, 204, 102, .4), 0 4px 12px rgba(255,204,102,.1);
+    }
+    .streak-rank{
+      font-size: 24px;
+      font-weight: 1000;
+      color: rgba(255, 204, 102, .8);
+      margin-bottom: 4px;
+    }
+    .streak-name{
+      font-weight: 900;
+      font-size: 14px;
+      margin-bottom: 6px;
+    }
+    .streak-badge{
+      white-space: nowrap;
+      font-size: 11px;
+      padding: 5px 9px;
+      border-radius: 999px;
+      background: rgba(255, 204, 102, .25);
+      border: 1px solid rgba(255, 204, 102, .5);
+      color: rgba(255, 204, 102, 1);
+      font-weight: 900;
+    }
+
+    /* 🆕 高光时刻 */
+    .highlights-grid{
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+      margin-top: 4px;
+    }
+    .highlight-card{
+      border: 1px solid rgba(37, 194, 110, .3);
+      border-radius: 12px;
+      padding: 14px;
+      background: linear-gradient(135deg, rgba(37,194,110,.08), rgba(37,194,110,.02));
+      transition: all .3s cubic-bezier(.25,.46,.45,.94);
+      animation: fadeInUp 0.5s ease;
+    }
+    .highlight-card:hover{
+      border-color: rgba(37, 194, 110, .7);
+      background: linear-gradient(135deg, rgba(37,194,110,.16), rgba(37,194,110,.08));
+      transform: translateY(-3px);
+      box-shadow: 0 6px 16px rgba(37,194,110,.12);
+    }
+    .highlight-name{
+      font-weight: 1000;
+      font-size: 15px;
+      margin-bottom: 10px;
+      color: rgba(37, 194, 110, 1);
+    }
+    .highlight-badges{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .badge{
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      padding: 5px 9px;
+      border-radius: 999px;
+      background: rgba(37, 194, 110, .2);
+      border: 1px solid rgba(37, 194, 110, .4);
+      font-size: 11px;
+      font-weight: 900;
+      cursor: help;
+      transition: all .2s ease;
+      white-space: nowrap;
+    }
+    .badge:hover{
+      background: rgba(37, 194, 110, .35);
+      border-color: rgba(37, 194, 110, .6);
+      transform: scale(1.05);
+    }
+    .badge-icon{
+      font-size: 13px;
+      display: inline-block;
+    }
+    .badge-title{
+      display: inline;
+    }
+
     /* ✅ v3.6：iPad 弹窗强制居中（visualViewport） + 顶部布局更稳 + 颜色区分更明显 */
     .modal-mask{
       position:fixed;
@@ -602,54 +846,79 @@
 <div class="wrap">
   <!-- HOME -->
   <div id="tabHome">
-    <div class="grid">
-      <div class="card">
-        <div class="flex-between">
-          <div>
-            <div class="pill">累计看板</div>
-            <div class="muted" id="metaInfo" style="margin-top:6px;"></div>
+    <div class="home-grid">
+      <!-- 左栏：排名榜 + 图表 -->
+      <div class="home-left">
+        <div class="card">
+          <div class="flex-between">
+            <div>
+              <div class="pill">累计看板</div>
+              <div class="muted" id="metaInfo" style="margin-top:6px;"></div>
+            </div>
+            <div class="row">
+              <button class="btn-ghost" id="btnRefresh">刷新</button>
+              <button class="btn-primary-large" id="btnGoEditTop">去记一局</button>
+            </div>
           </div>
-          <div class="row">
-            <button class="btn-ghost" id="btnRefresh">刷新</button>
-            <button class="btn-primary-large" id="btnGoEditTop">去记一局</button>
+
+          <div class="sep"></div>
+
+          <table>
+            <thead><tr><th>玩家 &amp; 横向条</th></tr></thead>
+            <tbody id="scoreboardBody"></tbody>
+          </table>
+
+          <div class="sep"></div>
+
+          <div class="chartWrap">
+            <div class="pill">累计走势折线图</div>
+            <div style="height:8px;"></div>
+            <canvas id="lineChart" class="chartCanvas"></canvas>
+            <div id="lineLegend" class="chartLegend"></div>
+            <div class="chartHint">折线图：X=局数（从第1局开始），Y=累计输赢金额。</div>
           </div>
+
+          <div class="sep"></div>
+          <div class="muted">说明：累计为正=赢；累计为负=输。横向条：正数绿色从左起，负数红色从右起。</div>
         </div>
-
-        <div class="sep"></div>
-
-        <table>
-          <thead><tr><th>玩家 &amp; 横向条</th></tr></thead>
-          <tbody id="scoreboardBody"></tbody>
-        </table>
-
-        <div class="sep"></div>
-
-        <div class="chartWrap">
-          <div class="pill">累计走势折线图</div>
-          <div style="height:8px;"></div>
-          <canvas id="lineChart" class="chartCanvas"></canvas>
-          <div id="lineLegend" class="chartLegend"></div>
-          <div class="chartHint">折线图：X=局数（从第1局开始），Y=累计输赢金额。</div>
-        </div>
-
-        <div class="sep"></div>
-        <div class="muted">说明：累计为正=赢；累计为负=输。横向条：正数绿色从左起，负数红色从右起。</div>
       </div>
 
-      <div class="card">
-        <div class="pill">快捷操作</div>
-        <div class="sep"></div>
-        <div class="row">
-          <button class="btn-ghost" id="btnGoSettings">去设置</button>
-          <button class="btn-danger" id="btnResetAll">清空全部（多次确认）</button>
+      <!-- 中栏：新增统计模块 -->
+      <div class="home-middle">
+        <!-- 连胜榜 -->
+        <div class="card stat-card stat-card-animate">
+          <div class="pill">🔥 连胜榜</div>
+          <div id="streakBox" style="margin-top: 12px;"></div>
         </div>
-        <div class="sep"></div>
-        <div class="pill">规则提示</div>
-        <div class="muted" style="margin-top:8px;">
-          - 选择胜利者后：胜者为正，其余为负（你输入的是绝对值）。<br/>
-          - 保存会弹确认弹窗（iPad 已强制居中）。<br/>
-          - 每局合计必须为 0 才能保存（胜者赢的钱=其他人输的钱之和）。
+
+        <!-- 高光时刻 -->
+        <div class="card stat-card stat-card-animate" style="animation-delay: 0.1s;">
+          <div class="pill">⭐ 高光时刻</div>
+          <div id="highlightsBox" style="margin-top: 12px;"></div>
         </div>
+
+        <!-- 上局胜者 -->
+        <div class="card stat-card stat-card-animate" style="animation-delay: 0.2s;">
+          <div class="pill">🏆 上局胜者</div>
+          <div id="lastWinnerBox" style="margin-top: 12px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 底部：快捷操作 -->
+    <div class="card" style="margin-top: 12px; animation: fadeInUp 0.6s ease 0.3s both;">
+      <div class="pill">⚙️ 快捷操作</div>
+      <div class="sep"></div>
+      <div class="row">
+        <button class="btn-ghost" id="btnGoSettings">去设置</button>
+        <button class="btn-danger" id="btnResetAll">清空全部（多次确认）</button>
+      </div>
+      <div class="sep"></div>
+      <div class="pill">规则提示</div>
+      <div class="muted" style="margin-top:8px;">
+        - 选择胜利者后：胜者为正，其余为负（你输入的是绝对值）。<br/>
+        - 保存会弹确认弹窗（iPad 已强制居中）。<br/>
+        - 每局合计必须为 0 才能保存（胜者赢的钱=其他人输的钱之和）。
       </div>
     </div>
   </div>
@@ -1295,6 +1564,239 @@
     }
 
     metaInfo.textContent = `人数：${state.playerCount}；局数：${state.rounds.length}`;
+
+    // 🆕 渲染三个新模块
+    rebuildLastWinnerCard();
+    rebuildStreakCard();
+    rebuildHighlightsCard();
+  }
+
+  // 🆕 上局胜者
+  function rebuildLastWinnerCard(){
+    const box = $("lastWinnerBox");
+    if(!state.rounds || state.rounds.length === 0) {
+      box.innerHTML = `<div class="muted">还没有人赢过。</div>`;
+      return;
+    }
+
+    const lastRound = state.rounds[state.rounds.length - 1];
+    const winnerIdx = lastRound.winnerIndex;
+
+    if(winnerIdx < 0 || winnerIdx >= state.playerCount) {
+      box.innerHTML = `<div class="muted">还没有人赢过。</div>`;
+      return;
+    }
+
+    const name = state.players[winnerIdx];
+    const amount = lastRound.amounts?.[winnerIdx] || 0;
+
+    box.innerHTML = `
+      <div class="last-winner-card">
+        <div class="last-winner-title">胜者</div>
+        <div class="last-winner-name">${escapeHtml(name)}</div>
+        <div class="last-winner-amount">
+          <span>赢了</span>
+          <div style="font-size: 28px; font-weight: 1000; ${amount >= 0 ? 'color: var(--ok);' : 'color: var(--bad);'}">
+            ${amount >= 0 ? '+' : ''}${amount}元
+          </div>
+        </div>
+        <div class="last-winner-round">第 ${state.rounds.length} 局</div>
+      </div>
+    `;
+  }
+
+  // 🆕 连胜榜
+  function rebuildStreakCard(){
+    const box = $("streakBox");
+    const n = state.playerCount;
+    const streaks = new Array(n).fill(0);
+    const current = new Array(n).fill(0);
+
+    for(const r of state.rounds){
+      const winnerIdx = r.winnerIndex;
+      if(winnerIdx >= 0 && winnerIdx < n){
+        current[winnerIdx]++;
+        streaks[winnerIdx] = Math.max(streaks[winnerIdx], current[winnerIdx]);
+        for(let i=0; i<n; i++){
+          if(i !== winnerIdx) current[i] = 0;
+        }
+      }
+    }
+
+    const maxStreak = Math.max(...streaks);
+
+    if(maxStreak === 0){
+      box.innerHTML = `<div class="muted">还没有人连胜过。</div>`;
+      return;
+    }
+
+    const items = [];
+    for(let i=0; i<n; i++){
+      if(streaks[i] > 0){
+        const name = state.players[i] || ("玩家"+(i+1));
+        items.push({
+          name,
+          streak: streaks[i],
+          isCurrent: streaks[i] === maxStreak
+        });
+      }
+    }
+
+    items.sort((a,b) => b.streak - a.streak);
+
+    box.innerHTML = `
+      <div class="streak-list">
+        ${items.map((item, idx) => `
+          <div class="streak-item ${item.isCurrent ? 'highlight' : ''}">
+            <div class="streak-rank">#${idx+1}</div>
+            <div class="streak-name">${escapeHtml(item.name)}</div>
+            <div class="streak-badge">🔥 ${item.streak} 连胜</div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  // 🆕 高光时刻
+  function rebuildHighlightsCard(){
+    const box = $("highlightsBox");
+    const n = state.playerCount;
+    const highlights = new Array(n).fill(null).map((_, i) => ({
+      playerIdx: i,
+      name: state.players[i] || ("玩家"+(i+1)),
+      badges: [],
+      highlights: []
+    }));
+
+    // 条件 1️⃣：首局胜利者 - "天才少年"
+    if(state.rounds.length > 0){
+      const firstWinner = state.rounds[0].winnerIndex;
+      if(firstWinner >= 0){
+        highlights[firstWinner].badges.push({
+          icon: "🌟",
+          title: "天才少年",
+          desc: "首局就赢下来了"
+        });
+      }
+    }
+
+    // 条件 2️⃣：单局超 9 元 - "暴击王"
+    for(const r of state.rounds){
+      const amounts = r.amounts || [];
+      for(let i=0; i<n; i++){
+        if(amounts[i] >= 9){
+          if(!highlights[i].badges.find(b => b.title === "暴击王")){
+            highlights[i].badges.push({
+              icon: "💥",
+              title: "暴击王",
+              desc: `单局最高获得 ${Math.max(...state.rounds.map(rr => rr.amounts?.[i] || 0))} 元`
+            });
+          }
+        }
+      }
+    }
+
+    // 条件 3️⃣：逆风翻盘 - "绝地反击"
+    const totals = [new Array(n).fill(0)];
+    for(const r of state.rounds){
+      const prev = totals[totals.length-1].slice();
+      const next = prev.slice();
+      for(let i=0; i<n; i++){
+        next[i] += Number(r.amounts?.[i] || 0);
+      }
+      totals.push(next);
+    }
+
+    for(let roundIdx=1; roundIdx<state.rounds.length; roundIdx++){
+      const prevTotal = totals[roundIdx];
+      const isWinner = state.rounds[roundIdx].winnerIndex;
+      if(isWinner >= 0 && prevTotal[isWinner] < 0){
+        if(!highlights[isWinner].badges.find(b => b.title === "绝地反击")){
+          highlights[isWinner].badges.push({
+            icon: "⚡",
+            title: "绝地反击",
+            desc: `在累计落后的情况下扭转局势`
+          });
+        }
+      }
+    }
+
+    // 条件 4️⃣：稳定赢家 - "常胜将军"
+    const winCounts = new Array(n).fill(0);
+    for(const r of state.rounds){
+      if(r.winnerIndex >= 0) winCounts[r.winnerIndex]++;
+    }
+    const totalRounds = state.rounds.length;
+    for(let i=0; i<n; i++){
+      if(totalRounds > 0 && winCounts[i] / totalRounds >= 0.5){
+        if(!highlights[i].badges.find(b => b.title === "常胜将军")){
+          highlights[i].badges.push({
+            icon: "👑",
+            title: "常胜将军",
+            desc: `赢率 ${Math.round(winCounts[i]/totalRounds*100)}%`
+          });
+        }
+      }
+    }
+
+    // 条件 5️⃣：绝杀时刻 - "最后之王"
+    if(state.rounds.length > 0){
+      const lastRound = state.rounds[state.rounds.length-1];
+      const lastWinner = lastRound.winnerIndex;
+      const lastAmount = lastRound.amounts?.[lastWinner] || 0;
+      if(lastWinner >= 0 && lastAmount >= 6){
+        if(!highlights[lastWinner].badges.find(b => b.title === "最后之王")){
+          highlights[lastWinner].badges.push({
+            icon: "🎯",
+            title: "最后之王",
+            desc: `用 ${lastAmount} 元绝杀全场`
+          });
+        }
+      }
+    }
+
+    // 条件 6️⃣：黑马奇迹 - "黑马"
+    const currentTotals = computeTotals();
+    for(let i=0; i<n; i++){
+      const finalTotal = currentTotals[i];
+      if(finalTotal < 0){
+        const recentWins = state.rounds.slice(-3).filter(r => r.winnerIndex === i).length;
+        if(recentWins >= 2){
+          if(!highlights[i].badges.find(b => b.title === "黑马")){
+            highlights[i].badges.push({
+              icon: "🐴",
+              title: "黑马",
+              desc: `虽然累计落后，但近来表现惊人`
+            });
+          }
+        }
+      }
+    }
+
+    const validHighlights = highlights.filter(h => h.badges.length > 0);
+
+    if(validHighlights.length === 0){
+      box.innerHTML = `<div class="muted">还没有高光时刻。多玩几局就会出现！</div>`;
+      return;
+    }
+
+    box.innerHTML = `
+      <div class="highlights-grid">
+        ${validHighlights.map(h => `
+          <div class="highlight-card">
+            <div class="highlight-name">${escapeHtml(h.name)}</div>
+            <div class="highlight-badges">
+              ${h.badges.map(badge => `
+                <div class="badge" title="${escapeHtml(badge.desc)}">
+                  <span class="badge-icon">${badge.icon}</span>
+                  <span class="badge-title">${escapeHtml(badge.title)}</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
   }
 
   function rebuildSettings(){
