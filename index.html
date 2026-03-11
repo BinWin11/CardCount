@@ -250,6 +250,11 @@
       text-align:center;
       touch-action: manipulation;
     }
+    .chip.disabled{
+      opacity:.35;
+      filter: grayscale(.35);
+      pointer-events:none;
+    }
     .chip:active{transform:scale(.98)}
     @media (min-width:768px){
       .chip{
@@ -395,6 +400,11 @@
       border:2px solid var(--line);
       border-radius:10px;
     }
+    .playerCardInput input:disabled{
+      opacity:.35;
+      filter: grayscale(.35);
+      cursor:not-allowed;
+    }
     .playerCardInput input:focus{
       border-color:rgba(255,255,255,.4);
       background:rgba(0,0,0,.4);
@@ -426,6 +436,9 @@
       font-size:12px;
       line-height:1.5;
       opacity:.8;
+    }
+    .playerCard.winner-locked{
+      opacity:.92;
     }
 
     /* 确认框中的玩家卡片样式 */
@@ -523,10 +536,105 @@
     .chartWrap{
       border:1px solid var(--line);
       border-radius:14px;
-      background:rgba(0,0,0,.14);
+      background: rgba(15, 23, 42, .55);
       padding:10px;
+      position:relative;
+      overflow:hidden;
+      transition: all .5s ease;
+      backdrop-filter: blur(10px);
     }
     .chartCanvas{width:100%;height:220px;display:block;}
+    .chartCanvasSmall{width:100%;height:140px;display:block;}
+
+    /* 🔮 液态玻璃 + 琥珀边框光效 */
+    .chartWrap.fx{
+      border-color: rgba(245, 158, 11, .30);
+      box-shadow:
+        0 10px 28px rgba(0,0,0,.35),
+        0 0 0 1px rgba(245, 158, 11, .08) inset,
+        0 0 24px rgba(245, 158, 11, .12);
+    }
+    .chartWrap.fx.fx-scrolled{
+      backdrop-filter: blur(18px);
+      background: rgba(15, 23, 42, .70);
+    }
+    .chartWrap.fx:hover{
+      transform: translateY(-2px);
+      box-shadow:
+        0 14px 36px rgba(0,0,0,.42),
+        0 0 0 1px rgba(245, 158, 11, .14) inset,
+        0 0 36px rgba(245, 158, 11, .18);
+    }
+
+    /* 💫 动态效果：浮动光球 / 旋转光晕 / 脉冲 / 弹跳 */
+    .fxLayer{position:absolute; inset:0; pointer-events:none;}
+    .fxOrb{
+      position:absolute;
+      width:96px; height:96px;
+      border-radius:999px;
+      filter: blur(18px);
+      opacity:.55;
+      background: radial-gradient(circle at 30% 30%, rgba(245,158,11,.55), rgba(245,158,11,0) 60%);
+      animation: fxFloat 6s ease-in-out infinite;
+      mix-blend-mode: screen;
+    }
+    .fxOrb.b{
+      background: radial-gradient(circle at 30% 30%, rgba(86,160,255,.55), rgba(86,160,255,0) 60%);
+      animation-duration: 7.5s;
+      opacity:.45;
+    }
+    @keyframes fxFloat{
+      0%,100%{ transform: translate(0,0) }
+      50%{ transform: translate(18px,-10px) }
+    }
+    .fxHalo{
+      position:absolute;
+      left:50%; top:50%;
+      width:220px; height:220px;
+      transform: translate(-50%,-50%);
+      border-radius:999px;
+      background: conic-gradient(from 90deg,
+        rgba(245,158,11,.0),
+        rgba(245,158,11,.22),
+        rgba(86,160,255,.16),
+        rgba(245,158,11,.0));
+      filter: blur(22px);
+      opacity:.35;
+      animation: fxSpin 8s linear infinite;
+    }
+    @keyframes fxSpin{
+      from{ transform: translate(-50%,-50%) rotate(0deg); }
+      to{ transform: translate(-50%,-50%) rotate(360deg); }
+    }
+    .animate-pulse{animation: fxPulse 2.2s ease-in-out infinite;}
+    @keyframes fxPulse{ 0%,100%{opacity:1} 50%{opacity:.78} }
+    .animate-bounce{animation: fxBounce 3s ease-in-out infinite;}
+    @keyframes fxBounce{ 0%,100%{ transform: translateY(0) } 50%{ transform: translateY(-6px) } }
+
+    /* ⚡ 状态指示：ping */
+    .fxStatus{
+      position:absolute;
+      right:10px; top:10px;
+      width:10px; height:10px;
+      border-radius:999px;
+      background: rgba(245,158,11,.9);
+      box-shadow: 0 0 0 2px rgba(0,0,0,.35), 0 0 18px rgba(245,158,11,.35);
+      pointer-events:none;
+    }
+    .fxStatus::after{
+      content:"";
+      position:absolute;
+      inset:-6px;
+      border-radius:999px;
+      border:1px solid rgba(245,158,11,.5);
+      animation: fxPing 1.4s cubic-bezier(0,0,.2,1) infinite;
+      opacity:.6;
+    }
+    @keyframes fxPing{ 0%{ transform: scale(.6); opacity:.65; } 100%{ transform: scale(1.8); opacity:0; } }
+
+    .chartWrap.fx > *{ position:relative; z-index:2; }
+    .chartWrap.fx .fxLayer{ z-index:1; }
+
     .chartLegend{
       display:flex;
       flex-wrap:wrap;
@@ -868,16 +976,26 @@
 
           <div class="sep"></div>
 
-          <div class="chartWrap">
-            <div class="pill">累计走势折线图</div>
+          <div class="chartWrap fx">
+            <div class="fxLayer animate-pulse">
+              <div class="fxHalo"></div>
+              <div class="fxOrb animate-bounce" style="left:12px; top:18px;"></div>
+              <div class="fxOrb b" style="right:18px; bottom:22px;"></div>
+            </div>
+            <div class="pill">累计走势</div>
             <div style="height:8px;"></div>
             <canvas id="lineChart" class="chartCanvas"></canvas>
             <div id="lineLegend" class="chartLegend"></div>
-            <div class="chartHint">折线图：X=局数（从第1局开始），Y=累计输赢金额。</div>
+            <div class="chartHint"></div>
+            <div class="sep"></div>
+            <div class="pill">累计胜局数</div>
+            <div style="height:8px;"></div>
+            <canvas id="winBarChart" class="chartCanvasSmall"></canvas>
+            <div class="chartHint">每位玩家累计获胜局数。</div>
           </div>
 
           <div class="sep"></div>
-          <div class="muted">说明：累计为正=赢；累计为负=输。横向条：正数绿色从左起，负数红色从右起。</div>
+          <div class="muted">说明：正数红色从左起，负数绿色从右起。</div>
         </div>
       </div>
 
@@ -889,16 +1007,16 @@
           <div id="streakBox" style="margin-top: 12px;"></div>
         </div>
 
-        <!-- 高光时刻 -->
-        <div class="card stat-card stat-card-animate" style="animation-delay: 0.1s;">
-          <div class="pill">⭐ 高光时刻</div>
-          <div id="highlightsBox" style="margin-top: 12px;"></div>
-        </div>
-
         <!-- 上局胜者 -->
-        <div class="card stat-card stat-card-animate" style="animation-delay: 0.2s;">
+        <div class="card stat-card stat-card-animate" style="animation-delay: 0.1s;">
           <div class="pill">🏆 上局胜者</div>
           <div id="lastWinnerBox" style="margin-top: 12px;"></div>
+        </div>
+
+        <!-- 高光时刻 -->
+        <div class="card stat-card stat-card-animate" style="animation-delay: 0.2s;">
+          <div class="pill">⭐ 高光时刻</div>
+          <div id="highlightsBox" style="margin-top: 12px;"></div>
         </div>
       </div>
     </div>
@@ -926,7 +1044,7 @@
     <div class="card">
       <div class="flex-between">
         <div>
-          <div class="pill">记一局（自动正负）</div>
+          <div class="pill" id="editTitle">记一局（自动正负）</div>
           <div class="muted" style="margin-top:6px;">
             金额支持：手动输入、快捷按钮（仅正数）。当非胜利者都填完，会自动算出胜利者金额。
           </div>
@@ -952,7 +1070,7 @@
       <div>
         <label>选择胜利者并输入金额</label>
         <div class="muted" style="margin-top:4px; margin-bottom:12px;">
-          点击下方任意一个玩家的卡片区域，即可将其设为胜利者。选中的玩家卡片会高亮显示，并显示"胜利者"标识。
+          点击下方任意一个玩家的卡片区域，即可将其设为胜利者。输入绝对值；
         </div>
         <div id="winnerBox" class="winnerBox"></div>
       </div>
@@ -961,7 +1079,7 @@
       <div class="sep"></div>
       <div class="row">
         <button class="btn-ok" id="btnRequestSave">保存（先确认）</button>
-        <span class="muted">保存会写入 localStorage</span>
+        <span class="muted"></span>
       </div>
     </div>
   </div>
@@ -1168,6 +1286,7 @@
   // Line chart
   const lineChart = $("lineChart");
   const lineLegend = $("lineLegend");
+  const winBarChart = $("winBarChart");
 
   // Settings
   const playerCountEl = $("playerCount");
@@ -1215,6 +1334,7 @@
   let pendingSigned = null;
   let pendingWinner = null;
   let currentWinnerIndex = -1; // 当前选中的胜利者索引
+  let editingRoundId = null; // 编辑模式：正在编辑的局 id（null=新增）
 
   function escapeHtml(str){
     return String(str).replace(/[&<>"']/g, s=>({
@@ -1238,7 +1358,10 @@
     tabSettingsBtn.classList.toggle("active", isSettings);
 
     if(isHome){
-      requestAnimationFrame(drawLineChart);
+      requestAnimationFrame(()=>{
+        drawLineChart();
+        drawWinBarChart();
+      });
     }
   }
 
@@ -1323,7 +1446,7 @@
   }
 
   // 4人局快捷：仅 1/2/3（不出现6和0）
-  function quickChipsHtml(i){
+  function quickChipsHtml(i, disabled){
 	  const n = state.playerCount;
 	  let values;
 
@@ -1338,9 +1461,10 @@
 		values = [1, 2, 3, 6, 0];
 	  }
 
+	  const disCls = disabled ? " disabled" : "";
 	  return `
 		<div class="quickbar">
-		  ${values.map(v=>`<div class="chip" data-idx="${i}" data-v="${v}">${v}</div>`).join("")}
+		  ${values.map(v=>`<div class="chip${disCls}" data-idx="${i}" data-v="${v}">${v}</div>`).join("")}
 		</div>
 	  `;
 	}
@@ -1484,12 +1608,24 @@
   function confirmSave(){
     if(!pendingSigned) return;
 
-    state.rounds.push({
-      id: "R" + Date.now().toString(36) + Math.random().toString(36).slice(2,6),
-      ts: Date.now(),
-      winnerIndex: pendingWinner,
-      amounts: pendingSigned.slice()
-    });
+    if(editingRoundId){
+      const idx = state.rounds.findIndex(r=>r.id===editingRoundId);
+      if(idx >= 0){
+        const original = state.rounds[idx];
+        state.rounds[idx] = {
+          ...original,
+          winnerIndex: pendingWinner,
+          amounts: pendingSigned.slice()
+        };
+      }
+    }else{
+      state.rounds.push({
+        id: "R" + Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+        ts: Date.now(),
+        winnerIndex: pendingWinner,
+        amounts: pendingSigned.slice()
+      });
+    }
 
     saveState();
     closeEmptyModal();
@@ -1497,6 +1633,10 @@
     pendingSigned = null;
     pendingWinner = null;
     closeConfirmModal();
+
+    // 退出编辑模式
+    editingRoundId = null;
+    updateEditModeUI();
 
     // 先切换到主页
     openTab("home");
@@ -1506,7 +1646,10 @@
     rebuildDrawer();
     clearInputs();
 
-    requestAnimationFrame(drawLineChart);
+    requestAnimationFrame(()=>{
+      drawLineChart();
+      drawWinBarChart();
+    });
     
     // 滚动到页面顶部 - 使用 requestAnimationFrame 确保DOM更新完成
     requestAnimationFrame(() => {
@@ -1542,9 +1685,12 @@
       const abs = Math.abs(val);
       const pct = Math.min(100, (abs / maxAbs) * 100);
 
+      // 主页累计看板配色：正=红，负=绿（仅影响该模块）
       const fillStyle = val >= 0
-        ? `left:0; width:${pct}%; background:rgba(37,194,110,.70);`
-        : `right:0; width:${pct}%; background:rgba(255,92,108,.70);`;
+        ? `left:0; width:${pct}%; background:rgba(255,92,108,.70);`
+        : `right:0; width:${pct}%; background:rgba(37,194,110,.70);`;
+
+      const amtColor = val >= 0 ? "color:var(--bad);" : "color:var(--ok);";
 
       const tr = document.createElement("tr");
       tr.innerHTML = `
@@ -1554,7 +1700,7 @@
             <div class="scoreBarWrap">
               <div class="scoreBarFill" style="${fillStyle}"></div>
             </div>
-            <div class="scoreAmt ${val>=0?'pos':'neg'}">${val>=0?"+":""}${val}</div>
+            <div class="scoreAmt" style="${amtColor}">${val>=0?"+":""}${val}</div>
           </div>
         </td>
       `;
@@ -1850,12 +1996,12 @@
       const isSelected = (i === currentWinnerIndex);
       
       const card = document.createElement("div");
-      card.className = "playerCard" + (isSelected ? " selected" : "");
+      card.className = "playerCard" + (isSelected ? " selected winner-locked" : "");
       card.setAttribute("data-index", String(i));
       card.setAttribute("data-player", String(i));
       
       // 生成快捷按钮HTML
-      const quickChips = quickChipsHtml(i);
+      const quickChips = quickChipsHtml(i, isSelected);
       
       card.innerHTML = `
         <div class="playerCardHeader">
@@ -1863,13 +2009,13 @@
           ${isSelected ? '<div class="playerCardWinnerBadge">✓ 胜利者</div>' : ''}
         </div>
         <div class="playerCardInput">
-          <input type="number" id="amtInp_${i}" inputmode="numeric" min="0" step="1" placeholder="输入金额（正数）" />
+          <input type="number" id="amtInp_${i}" inputmode="numeric" min="0" step="1" placeholder="输入金额（正数）" ${isSelected ? 'disabled' : ''} />
         </div>
         <div class="playerCardChips">
           ${quickChips}
         </div>
         <div class="playerCardHint muted">
-          输入绝对值；系统按胜利者自动判断正负。非胜利者填完会自动计算胜利者。
+          
         </div>
       `;
       
@@ -1900,6 +2046,7 @@
           header.appendChild(badge);
         }
         validateAndPreview(true);
+        updateWinnerLockUI();
       });
       
       winnerBox.appendChild(card);
@@ -1908,6 +2055,7 @@
     // 绑定快捷按钮事件
     winnerBox.querySelectorAll(".chip").forEach(chip=>{
       chip.addEventListener("click", (e)=>{
+        if(chip.classList.contains("disabled")) return;
         e.stopPropagation(); // 阻止冒泡到卡片点击事件
         const idx = Number(chip.getAttribute("data-idx"));
         const v = Number(chip.getAttribute("data-v"));
@@ -1929,6 +2077,24 @@
     }
 
     showSumMsg("warn","请选择胜利者并填写金额。");
+    updateEditModeUI();
+    updateWinnerLockUI();
+  }
+
+  function updateWinnerLockUI(){
+    const n = state.playerCount;
+    for(let i=0;i<n;i++){
+      const inp = $("amtInp_"+i);
+      const card = winnerBox?.querySelector(`.playerCard[data-index="${i}"]`);
+      const isWinner = i === currentWinnerIndex;
+      if(inp) inp.disabled = !!isWinner;
+      if(card){
+        card.classList.toggle("winner-locked", !!isWinner);
+        card.querySelectorAll(".chip").forEach(ch=>{
+          ch.classList.toggle("disabled", !!isWinner);
+        });
+      }
+    }
   }
 
   function rebuildDrawer(){
@@ -1964,6 +2130,7 @@
             <div class="muted small">ID：${r.id}</div>
           </div>
           <div class="row">
+            <button class="btn-ghost" data-edit="${r.id}" type="button">编辑</button>
             <button class="btn-danger" data-del="${r.id}" type="button">删除</button>
           </div>
         </summary>
@@ -1976,6 +2143,14 @@
       `;
       roundsBox.appendChild(box);
     }
+
+    roundsBox.querySelectorAll("button[data-edit]").forEach(btn=>{
+      btn.addEventListener("click",(e)=>{
+        e.preventDefault();
+        const id = btn.getAttribute("data-edit");
+        editRound(id);
+      });
+    });
 
     roundsBox.querySelectorAll("button[data-del]").forEach(btn=>{
       btn.addEventListener("click",(e)=>{
@@ -1992,12 +2167,17 @@
     rebuildSettings();
     rebuildEdit();
     rebuildDrawer();
-    requestAnimationFrame(drawLineChart);
+    requestAnimationFrame(()=>{
+      drawLineChart();
+      drawWinBarChart();
+    });
     if(reasonForEmptyGuide) maybeAutoShowEmptyGuide(reasonForEmptyGuide);
   }
 
   function clearInputs(){
     currentWinnerIndex = -1;
+    editingRoundId = null;
+    updateEditModeUI();
     // 移除所有选中状态和胜利者标识
     if(winnerBox){
       winnerBox.querySelectorAll(".playerCard").forEach(el=>{
@@ -2014,6 +2194,38 @@
       if(inp) inp.value = "";
     }
     showSumMsg("warn","请选择胜利者并填写金额。");
+  }
+
+  function updateEditModeUI(){
+    const title = $("editTitle");
+    if(title){
+      title.textContent = editingRoundId ? "编辑本局（自动正负）" : "记一局";
+    }
+    if(btnRequestSave){
+      btnRequestSave.textContent = editingRoundId ? "保存修改" : "保存";
+    }
+  }
+
+  function editRound(id){
+    const r = state.rounds.find(x=>x.id===id);
+    if(!r) return;
+    editingRoundId = id;
+
+    // 打开记账页并填充
+    openTab("edit");
+    closeDrawer();
+
+    currentWinnerIndex = Number(r.winnerIndex);
+
+    // 先重建记账页（生成输入框/卡片），再灌入数据
+    rebuildEdit();
+
+    const n = state.playerCount;
+    for(let i=0;i<n;i++){
+      const v = Number((r.amounts||[])[i]||0);
+      setAbsValue(i, Math.abs(v), true);
+    }
+    validateAndPreview(true);
   }
 
   // ---------- Settings save ----------
@@ -2181,6 +2393,97 @@
     }
   }
 
+  function computeWinCounts(){
+    const n = state.playerCount;
+    const counts = new Array(n).fill(0);
+    for(const r of (state.rounds||[])){
+      const wi = Number(r.winnerIndex);
+      if(Number.isFinite(wi) && wi >= 0 && wi < n) counts[wi] += 1;
+    }
+    return counts;
+  }
+
+  function drawWinBarChart(){
+    if(!winBarChart) return;
+    resizeCanvasToDisplaySize(winBarChart);
+    const ctx = winBarChart.getContext("2d");
+    const w = winBarChart.width, h = winBarChart.height;
+    ctx.clearRect(0,0,w,h);
+
+    const n = state.playerCount;
+    const names = state.players.slice(0,n);
+    const counts = computeWinCounts();
+    const maxC = Math.max(1, ...counts);
+
+    // padding 与折线图保持一致的“风格密度”
+    const padding = Math.floor(Math.min(w,h) * 0.20);
+    const innerW = w - padding*2;
+    const innerH = h - padding*2;
+
+    // grid
+    ctx.strokeStyle = "rgba(255,255,255,.10)";
+    ctx.lineWidth = Math.max(1, Math.floor((window.devicePixelRatio||1)));
+    const gridN = 2;
+    for(let g=0; g<=gridN; g++){
+      const y = padding + (g/gridN)*innerH;
+      ctx.beginPath();
+      ctx.moveTo(padding, y);
+      ctx.lineTo(padding+innerW, y);
+      ctx.stroke();
+    }
+
+    const slotW = innerW / Math.max(1,n);
+    const barW = Math.max(6, Math.floor(slotW * 0.5)); // 宽度缩小一半
+    const baseY = padding + innerH;
+
+    function fillRoundRect(x,y,wid,hei,r){
+      const rr = Math.max(0, Math.min(r, wid/2, hei/2));
+      if(typeof ctx.roundRect === "function"){
+        ctx.beginPath();
+        ctx.roundRect(x,y,wid,hei,rr);
+        ctx.fill();
+        return;
+      }
+      ctx.beginPath();
+      ctx.moveTo(x+rr, y);
+      ctx.lineTo(x+wid-rr, y);
+      ctx.quadraticCurveTo(x+wid, y, x+wid, y+rr);
+      ctx.lineTo(x+wid, y+hei-rr);
+      ctx.quadraticCurveTo(x+wid, y+hei, x+wid-rr, y+hei);
+      ctx.lineTo(x+rr, y+hei);
+      ctx.quadraticCurveTo(x, y+hei, x, y+hei-rr);
+      ctx.lineTo(x, y+rr);
+      ctx.quadraticCurveTo(x, y, x+rr, y);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // bars + labels
+    ctx.font = `${Math.floor(11*(window.devicePixelRatio||1))}px -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto`;
+    for(let i=0;i<n;i++){
+      const c = counts[i];
+      const color = LINE_COLORS[i % LINE_COLORS.length];
+      const barH = Math.max(2, Math.floor((c / maxC) * innerH));
+      const x = padding + i*slotW + (slotW - barW)/2;
+      const y = baseY - barH;
+
+      ctx.fillStyle = color;
+      fillRoundRect(x, y, barW, barH, Math.max(4, Math.floor(barW*0.35))); // 圆角
+
+      // value on top
+      ctx.fillStyle = "rgba(232,238,252,.90)";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "bottom";
+      ctx.fillText(String(c), x + barW/2, y - 4);
+
+      // name at bottom
+      ctx.fillStyle = "rgba(255,255,255,.55)";
+      ctx.textBaseline = "top";
+      const nm = names[i] || ("玩家"+(i+1));
+      ctx.fillText(nm, x + barW/2, baseY + 6);
+    }
+  }
+
   // ---------- Settlement ----------
   function openSettleModal(){
     const totals = computeTotals();
@@ -2280,6 +2583,7 @@
   btnRefresh.addEventListener("click", ()=>{
     rebuildHome();
     drawLineChart();
+    drawWinBarChart();
   });
 
   btnOpenDetails.addEventListener("click", openDrawer);
@@ -2333,6 +2637,17 @@
   });
 
   window.addEventListener("resize", ()=>{ drawLineChart(); });
+  window.addEventListener("resize", ()=>{ drawWinBarChart(); });
+
+  // ⚡ 滚动响应：50px 阈值触发液态玻璃变化
+  function updateFxOnScroll(){
+    const scrolled = (window.scrollY || document.documentElement.scrollTop || 0) > 50;
+    document.querySelectorAll(".chartWrap.fx").forEach(el=>{
+      el.classList.toggle("fx-scrolled", scrolled);
+    });
+  }
+  window.addEventListener("scroll", updateFxOnScroll, { passive:true });
+  updateFxOnScroll();
 
   // ---------- Init ----------
   if(![2,3,4].includes(state.playerCount)) state.playerCount = 4;
