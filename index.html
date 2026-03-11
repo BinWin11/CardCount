@@ -67,6 +67,34 @@
       transform:translateY(-1px);
     }
 
+    /* 记账页：保存按钮更大、更醒目、更好点按 */
+    #btnRequestSave{
+      padding:16px 22px;
+      font-size:18px;
+      font-weight:1000;
+      border-radius:16px;
+      box-shadow: 0 14px 30px rgba(37,194,110,.28);
+      border-color: rgba(37,194,110,.45);
+    }
+    #btnRequestSave:hover{
+      filter: brightness(1.12);
+      box-shadow: 0 18px 38px rgba(37,194,110,.36);
+      transform: translateY(-1px);
+    }
+    #btnRequestSave:active{
+      transform: translateY(0);
+      filter: brightness(1.06);
+    }
+    @media (max-width:768px){
+      #btnRequestSave{
+        width:100%;
+        min-height:56px;
+        padding:18px 18px;
+        font-size:19px;
+        border-radius:18px;
+      }
+    }
+
     .wrap{max-width:1100px;margin:0 auto;padding:14px;}
     .grid{display:grid;grid-template-columns:1fr;gap:12px;margin-top:12px;}
     @media (min-width:900px){ .grid{grid-template-columns:1.2fr .8fr;} }
